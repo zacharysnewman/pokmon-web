@@ -57,7 +57,7 @@ class AI {
         });
 
         if (bestDir === '') {
-            bestDir = turns[0];
+            bestDir = turns[0].dir;
         }
 
         obj.moveDir = bestDir;

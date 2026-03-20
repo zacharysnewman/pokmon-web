@@ -77,11 +77,13 @@ class GameObject {
     }
 
     topObject() {
-        return Levels.levelSetup[this.roundedY() - 1][this.roundedX()];
+        var row = Levels.levelSetup[this.roundedY() - 1];
+        return row !== undefined ? row[this.roundedX()] : undefined;
     }
 
     bottomObject() {
-        return Levels.levelSetup[this.roundedY() + 1][this.roundedX()];
+        var row = Levels.levelSetup[this.roundedY() + 1];
+        return row !== undefined ? row[this.roundedX()] : undefined;
     }
 
     // Values
