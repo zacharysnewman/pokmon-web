@@ -188,8 +188,8 @@ class Draw {
 
         // Setup Top Right
         var topRight = false;
-        if (y + 1 < gridH && x - 1 > 0)
-            topRight = Levels.level1[y + 1][x - 1] > 0;
+        if (y - 1 > 0 && x + 1 < gridW)
+            topRight = Levels.level1[y - 1][x + 1] > 0;
 
         // Setup Bottom Right
         var bottomRight = false;
@@ -198,8 +198,8 @@ class Draw {
 
         // Setup Bottom Left
         var bottomLeft = false;
-        if (y - 1 > 0 && x + 1 < gridW)
-            bottomLeft = Levels.level1[y - 1][x + 1] > 0;
+        if (y + 1 < gridH && x - 1 > 0)
+            bottomLeft = Levels.level1[y + 1][x - 1] > 0;
 
         //  left or right and not (top or bottom)
         //      vertical wall

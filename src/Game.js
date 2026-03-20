@@ -61,7 +61,7 @@ function update() {
 
 function initializeLevel() {
     Levels.levelSetup = Levels.level1;
-    Levels.levelDynamic = Levels.level1;
+    Levels.levelDynamic = Levels.level1.map(row => [...row]);
 
     pacman = new GameObject('yellow', 13.5, 26, 0.667, Move.pacman, Draw.pacman, pacmanOnTileChanged, pacmanOnTileCentered);
     blinky = new GameObject('red', 13.5, 14, 0.667, Move.blinky, Draw.ghost, ghostOnTileChanged, ghostOnTileCentered);
