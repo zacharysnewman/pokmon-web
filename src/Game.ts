@@ -84,14 +84,14 @@ function setupTouchControls(): void {
         }
     }
 
-    gameState.canvas.addEventListener('touchstart', (e: TouchEvent) => {
+    document.addEventListener('touchstart', (e: TouchEvent) => {
         e.preventDefault();
         touchStartX = e.changedTouches[0].clientX;
         touchStartY = e.changedTouches[0].clientY;
         swipeFired = false;
     }, { passive: false });
 
-    gameState.canvas.addEventListener('touchmove', (e: TouchEvent) => {
+    document.addEventListener('touchmove', (e: TouchEvent) => {
         e.preventDefault();
         if (swipeFired) return;
         const dx = e.changedTouches[0].clientX - touchStartX;
@@ -101,7 +101,7 @@ function setupTouchControls(): void {
         applySwipe(dx, dy);
     }, { passive: false });
 
-    gameState.canvas.addEventListener('touchend', (e: TouchEvent) => {
+    document.addEventListener('touchend', (e: TouchEvent) => {
         e.preventDefault();
         if (swipeFired) return;
         const dx = e.changedTouches[0].clientX - touchStartX;
