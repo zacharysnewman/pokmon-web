@@ -109,8 +109,32 @@ export class Draw {
         ctx.fill();
     }
 
-    static drawGhostEyes(_color: string, _x: number, _y: number, _scale: number): void {
-        // stub
+    static drawGhostEyes(_color: string, x: number, y: number, scale: number): void {
+        const ctx = gameState.ctx;
+        const ghostSize = scale * unit;
+        const eyeOffsetX = ghostSize * 0.3;
+        const eyeOffsetY = ghostSize * 0.15;
+        const eyeRadius  = ghostSize * 0.25;
+        const pupilRadius = ghostSize * 0.14;
+        const pupilOffsetX = ghostSize * 0.08;
+        const pupilOffsetY = ghostSize * 0.06;
+
+        for (const side of [-1, 1]) {
+            const ex = x + side * eyeOffsetX;
+            const ey = y - eyeOffsetY;
+
+            // White
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(ex, ey, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Dark blue pupil
+            ctx.fillStyle = '#1a1aff';
+            ctx.beginPath();
+            ctx.arc(ex + side * pupilOffsetX, ey + pupilOffsetY, pupilRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     static dots(): void {
