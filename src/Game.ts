@@ -73,21 +73,10 @@ function start(): void {
 function setupTouchControls(): void {
     let touchStartX = 0;
     let touchStartY = 0;
+    let swipeFired = false;
     const minSwipeDistance = 20;
 
-    gameState.canvas.addEventListener('touchstart', (e: TouchEvent) => {
-        e.preventDefault();
-        touchStartX = e.changedTouches[0].clientX;
-        touchStartY = e.changedTouches[0].clientY;
-    }, { passive: false });
-
-    gameState.canvas.addEventListener('touchend', (e: TouchEvent) => {
-        e.preventDefault();
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        const dy = e.changedTouches[0].clientY - touchStartY;
-
-        if (Math.abs(dx) < minSwipeDistance && Math.abs(dy) < minSwipeDistance) return;
-
+    function applySwipe(dx: number, dy: number): void {
         if (Math.abs(dx) > Math.abs(dy)) {
             Input.leftPressed  = dx < 0;
             Input.rightPressed = dx > 0;
@@ -99,10 +88,35 @@ function setupTouchControls(): void {
             Input.leftPressed  = false;
             Input.rightPressed = false;
         }
-
         setTimeout(() => {
             Input.leftPressed = Input.rightPressed = Input.upPressed = Input.downPressed = false;
         }, 300);
+    }
+
+    gameState.canvas.addEventListener('touchstart', (e: TouchEvent) => {
+        e.preventDefault();
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+        swipeFired = false;
+    }, { passive: false });
+
+    gameState.canvas.addEventListener('touchmove', (e: TouchEvent) => {
+        e.preventDefault();
+        if (swipeFired) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) < minSwipeDistance && Math.abs(dy) < minSwipeDistance) return;
+        swipeFired = true;
+        applySwipe(dx, dy);
+    }, { passive: false });
+
+    gameState.canvas.addEventListener('touchend', (e: TouchEvent) => {
+        e.preventDefault();
+        if (swipeFired) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) < minSwipeDistance && Math.abs(dy) < minSwipeDistance) return;
+        applySwipe(dx, dy);
     }, { passive: false });
 }
 
