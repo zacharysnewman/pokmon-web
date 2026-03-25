@@ -25,7 +25,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | `onTileChanged` callback | ✅ | `GameObject.checkTileUpdates()` |
 | `onTileCentered` callback | ✅ | 0.1-tile threshold in `GameObject` |
 | Keyboard input (arrow keys) | ✅ | `Input.ts` |
-| Touch / swipe input | ✅ | `Game.ts` — min 20 px swipe, 300 ms clear |
+| Touch / swipe input | ✅ | `Game.ts` — min 40 px swipe, 8-frame turn buffer |
 | Responsive canvas scaling | ✅ | `resizeCanvas()` in `Game.ts` |
 | Timer system | ✅ | `Time.addTimer()` / `Timer.ts` |
 
@@ -46,7 +46,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Level-based speed (80% / 90% / 100%) | ❌ | `moveSpeed` hardcoded to `1.0` |
 | Frightened speed boost | ❌ | |
 | Cornering (pre-turn / post-turn) | ❌ | Direction only changes when tile ahead is clear |
-| Input buffering for turns | ❌ | Turn rejected immediately if wall is ahead |
+| Input buffering for turns | ⚠️ | Touch: 8-frame retry buffer (`Input.BUFFER_FRAMES`); keyboard: held key retries every frame; no pre/post-turn pixel window yet |
 
 ---
 
@@ -58,8 +58,8 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Starting positions | ✅ | Blinky(13.5,14) Pinky(13.5,17) Inky(12,17) Clyde(15,17) |
 | Ghost body rendering | ✅ | `Draw.drawGhostBody()` |
 | Ghost eye rendering (static) | ✅ | `Draw.drawGhostEyes()` — pupils don't track direction |
-| Ghost movement (Blinky) | ⚠️ | `Move.blinky()` calls `moveObject()` but direction set by AI |
-| Ghost movement (Pinky / Inky / Clyde) | ❌ | `Move.pinky/inky/sue()` are empty stubs |
+| Ghost movement (Blinky) | ✅ | `Move.blinky()` + `AI.ghostTileCenter()` |
+| Ghost movement (Pinky / Inky / Clyde) | ✅ | `Move.pinky/inky/sue()` — all use same chase-Pac-Man logic for now; authentic personalities in Phase 5 |
 | No-reverse rule | ✅ | Opposite direction excluded in `AI.ghostTileCenter()` |
 | Up/Left/Down/Right tie-break priority | ✅ | Push order in `AI.ghostTileCenter()` matches spec |
 | Level-based ghost speed | ❌ | Fixed speed for all ghosts |
@@ -69,7 +69,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Ghost eye direction tracking movement | ❌ | Pupils are static |
 | Frightened appearance (blue body) | ❌ | |
 | Frightened flash warning | ❌ | |
-| Ghost collision with Pac-Man → life lost | ❌ | |
+| Ghost collision with Pac-Man → life lost | ✅ | `checkCollisions()` in `Game.ts` — tile-match per frame |
 
 ---
 
@@ -83,7 +83,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Forced reversal on mode change | ❌ | |
 | Scatter/chase timer pause in frightened | ❌ | |
 | Timer reset on life lost / level complete | ❌ | |
-| Ghosts start in scatter on level begin | ❌ | Currently in chase immediately |
+| Ghosts start in scatter on level begin | ❌ | Currently chase from frame 1 |
 
 ---
 
@@ -92,9 +92,9 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Ghost | Chase Target | Status | Notes |
 |---|---|---|---|
 | Blinky | Pac-Man's current tile | ✅ | `AI.ghostTileCenter()` uses `pacman.roundedX/Y()` |
-| Pinky | 4 tiles ahead of Pac-Man (with up-bug) | ❌ | Stub |
-| Inky | Doubled vector from Blinky to 2-ahead of Pac-Man (with up-bug) | ❌ | Stub |
-| Clyde | Pac-Man if ≥8 tiles away, else scatter corner | ❌ | Stub |
+| Pinky | 4 tiles ahead of Pac-Man (with up-bug) | ⚠️ | Currently uses same logic as Blinky; authentic algorithm in Phase 5 |
+| Inky | Doubled vector from Blinky to 2-ahead of Pac-Man (with up-bug) | ⚠️ | Currently uses same logic as Blinky; authentic algorithm in Phase 5 |
+| Clyde | Pac-Man if ≥8 tiles away, else scatter corner | ⚠️ | Currently uses same logic as Blinky; authentic algorithm in Phase 5 |
 | All — Scatter | Fixed corner target tile | ❌ | |
 | All — Frightened | PRNG random wandering | ❌ | |
 | All — Eyes | Fixed ghost house return tile | ❌ | |
@@ -158,15 +158,15 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Feature | Status | Notes / File |
 |---|---|---|
 | Lives initialised to 3 | ✅ | `Stats.lives = 3` |
-| Life lost on ghost collision | ❌ | |
-| Ghost/Pac-Man reset on death | ❌ | |
-| Scatter/chase timer reset on death | ❌ | |
-| PRNG seed reset on death | ❌ | |
-| Game over on 0 lives | ❌ | |
-| Level clear on all dots eaten | ❌ | |
-| Level counter increment | ❌ | |
+| Life lost on ghost collision | ✅ | `loseLife()` in `Game.ts` |
+| Ghost/Pac-Man reset on death | ✅ | `resetPositions()` in `Game.ts` — 1 s freeze then resume |
+| Scatter/chase timer reset on death | ❌ | No scatter/chase timer yet |
+| PRNG seed reset on death | ❌ | No PRNG yet |
+| Game over on 0 lives | ✅ | `gameState.gameOver` halts updates; overlay rendered |
+| Level clear on all dots eaten | ✅ | `levelClear()` in `Game.ts` — 1.5 s freeze then map reset |
+| Level counter increment | ✅ | `gameState.level++` on level clear |
 | Extra life at 10,000 pts | ❌ | |
-| Pass-through collision edge case | ❌ | Collision itself not implemented |
+| Pass-through collision edge case | ❌ | |
 
 ---
 
@@ -174,13 +174,15 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 
 | Feature | Status | Notes |
 |---|---|---|
-| Score display | ❌ | Score tracked in `Stats` but never rendered |
-| High score display | ❌ | |
-| Lives display | ❌ | |
-| Level / fruit counter display | ❌ | |
+| Score display | ✅ | `Draw.hud()` — top-left |
+| High score display | ✅ | `Draw.hud()` — top-center |
+| Lives display | ✅ | `Draw.hud()` — Pac-Man icons along bottom |
+| Level number display | ✅ | `Draw.hud()` — top-right as `L{n}` |
+| Fruit / level history display | ❌ | Last 7 fruit symbols not rendered |
 | Fruit sprite on screen | ❌ | |
 | Ghost score display on eat | ❌ | |
-| Ready! / Game Over text | ❌ | |
+| Ready! text | ❌ | |
+| Game Over text | ✅ | `Draw.gameOverScreen()` — red overlay text |
 
 ---
 
@@ -197,14 +199,14 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Category | Implemented | Total | % Done |
 |---|---|---|---|
 | Core engine | 10 | 10 | 100% |
-| Pac-Man | 9 | 13 | 69% |
-| Ghosts (shared) | 8 | 15 | 53% |
+| Pac-Man | 9 | 12 | 75% |
+| Ghosts (shared) | 9 | 16 | 56% |
 | Ghost AI — modes | 1 | 7 | 14% |
 | Ghost AI — targeting | 1 | 8 | 13% |
-| Ghost house & release | 2 | 14 | 14% |
+| Ghost house & release | 1 | 12 | 8% |
 | Cruise Elroy | 0 | 6 | 0% |
-| Frightened mode | 0 | 14 | 0% |
-| Lives & game flow | 1 | 10 | 10% |
-| HUD & display | 0 | 8 | 0% |
+| Frightened mode | 0 | 12 | 0% |
+| Lives & game flow | 6 | 10 | 60% |
+| HUD & display | 5 | 9 | 56% |
 | Audio | 0 | 1 | 0% |
-| **Overall** | **32** | **106** | **~30%** |
+| **Overall** | **42** | **103** | **~41%** |
