@@ -112,12 +112,12 @@ export class Draw {
     static drawGhostEyes(_color: string, x: number, y: number, scale: number): void {
         const ctx = gameState.ctx;
         const ghostSize = scale * unit;
-        const eyeOffsetX = ghostSize * 0.3;
-        const eyeOffsetY = ghostSize * 0.15;
-        const eyeRadius  = ghostSize * 0.25;
-        const pupilRadius = ghostSize * 0.14;
-        const pupilOffsetX = ghostSize * 0.08;
-        const pupilOffsetY = ghostSize * 0.06;
+        const eyeOffsetX = ghostSize * 0.42;
+        const eyeOffsetY = ghostSize * 0.1;
+        const eyeRadius  = ghostSize * 0.35;
+        const pupilRadius = ghostSize * 0.15;
+        const pupilOffsetX = ghostSize * 0.1;
+        const pupilOffsetY = ghostSize * 0.08;
 
         for (const side of [-1, 1]) {
             const ex = x + side * eyeOffsetX;

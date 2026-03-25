@@ -70,6 +70,42 @@ function start(): void {
     update();
 }
 
+function setupTouchControls(): void {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const minSwipeDistance = 20;
+
+    gameState.canvas.addEventListener('touchstart', (e: TouchEvent) => {
+        e.preventDefault();
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+    }, { passive: false });
+
+    gameState.canvas.addEventListener('touchend', (e: TouchEvent) => {
+        e.preventDefault();
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+
+        if (Math.abs(dx) < minSwipeDistance && Math.abs(dy) < minSwipeDistance) return;
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            Input.leftPressed  = dx < 0;
+            Input.rightPressed = dx > 0;
+            Input.upPressed    = false;
+            Input.downPressed  = false;
+        } else {
+            Input.upPressed    = dy < 0;
+            Input.downPressed  = dy > 0;
+            Input.leftPressed  = false;
+            Input.rightPressed = false;
+        }
+
+        setTimeout(() => {
+            Input.leftPressed = Input.rightPressed = Input.upPressed = Input.downPressed = false;
+        }, 300);
+    }, { passive: false });
+}
+
 function resizeCanvas(): void {
     const canvas = gameState.canvas;
     const scale = Math.min(window.innerWidth / 560, window.innerHeight / 720);
@@ -87,6 +123,7 @@ window.onload = function () {
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+    setupTouchControls();
 
     start();
 };
