@@ -22,12 +22,14 @@ export class Move {
 
     static blinky(): void {
         if (gameState.frozen) return;
+        if (gameState.pacmanFrozen && gameState.blinky.ghostMode !== 'eyes') return;
         Move.moveObject(gameState.blinky);
     }
 
     static inky(): void {
         if (gameState.frozen) return;
         const g = gameState.inky;
+        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
@@ -36,6 +38,7 @@ export class Move {
     static pinky(): void {
         if (gameState.frozen) return;
         const g = gameState.pinky;
+        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
@@ -44,6 +47,7 @@ export class Move {
     static clyde(): void {
         if (gameState.frozen) return;
         const g = gameState.clyde;
+        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);

@@ -147,6 +147,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Ghost eating collision | ✅ | `checkCollisions()` calls `eatGhost()` for frightened ghosts |
 | Score chain 200→400→800→1,600 | ✅ | `gameState.ghostEatenChain` tracks count per energizer |
 | Pac-Man freeze on ghost eat | ✅ | `gameState.pacmanFrozen = true` for 1 s; `Move.pacman()` checks flag |
+| All ghosts freeze on ghost eat | ✅ | Each ghost move fn checks `pacmanFrozen && ghostMode !== 'eyes'`; eyes continue home |
 | Ghost eyes return home | ✅ | Eyes mode at 1.5× speed, targeting (13,14) |
 | Per-level duration table | ✅ | `FRIGHTENED_DURATION` / `FRIGHTENED_FLASH_COUNT` in `Draw.ts` |
 | Red zone ignored in frightened | ❌ | Red zones not implemented |
@@ -205,11 +206,11 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Ghost AI — targeting | 8 | 8 | 100% |
 | Ghost house & release | 12 | 12 | 100% |
 | Cruise Elroy | 0 | 6 | 0% |
-| Frightened mode | 11 | 12 | 92% |
+| Frightened mode | 12 | 13 | 92% |
 | Lives & game flow | 8 | 10 | 80% |
 | HUD & display | 6 | 9 | 67% |
 | Audio | 0 | 1 | 0% |
-| **Overall** | **86** | **103** | **~83%** |
+| **Overall** | **87** | **104** | **~84%** |
 
 ---
 
@@ -220,7 +221,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Phase 1 — Playable Game Loop | ✅ Complete | All ghosts move, collision, HUD, lives, level clear |
 | Phase 2 — Scatter/Chase Mode Switching | ✅ Complete | Timer, corner targeting, reversal, reset |
 | Phase 3 — Ghost House & Release | ✅ Complete | House lock, personal counters, global counter, idle timer, bounce, exit direction |
-| Phase 4 — Frightened Mode | ✅ Complete | Energizer trigger, blue visuals, flash, PRNG, eating, eyes, score chain; mobile continuous swipe added |
+| Phase 4 — Frightened Mode | ✅ Complete | Energizer trigger, blue visuals, flash, PRNG, eating, eyes, score chain; all ghosts freeze on eat (eyes exempt); mobile continuous swipe added |
 | Phase 5 — Authentic Ghost AI | ✅ Complete | Pinky 4-ahead, Inky Blinky-vector, Clyde 8-tile proximity, up overflow bug |
 | Phase 6 — Speed System | ✅ Complete | Level-based Pac-Man speeds, ghost normal/fright/tunnel speeds, ghost tunnel teleport and wrap |
 | Phase 7 — Level Progression & Fruit | ❌ Not started | |
