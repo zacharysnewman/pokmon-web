@@ -18,7 +18,9 @@ export class Time {
 
         const prevTimeSinceStart = Time.timeSinceStart;
         Time.timeSinceStart = (new Date().getTime() - Time.startTime) / 1000;
-        Time.deltaTime = Time.timeSinceStart - prevTimeSinceStart;
+        // Cap delta to 100 ms so a browser suspension or slow frame doesn't
+        // send actors flying through walls with a huge movement step.
+        Time.deltaTime = Math.min(Time.timeSinceStart - prevTimeSinceStart, 0.1);
         Time.scaledDeltaTime = Time.deltaTime * 60;
 
         Time.timers.forEach(timer => {
