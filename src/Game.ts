@@ -785,28 +785,33 @@ window.onload = function () {
         panel.innerHTML = `
             <style>
             #debug-panel {
-                position: fixed; top: 10px; right: 10px;
-                background: rgba(0,0,0,0.88); color: #eee;
-                padding: 10px 14px; border: 1px solid #555;
-                font-family: monospace; font-size: 13px;
-                border-radius: 6px; z-index: 9999;
-                user-select: none; min-width: 160px;
+                position: fixed; top: 12px; right: 12px;
+                background: rgba(0,0,0,0.92); color: #eee;
+                padding: 18px 24px; border: 2px solid #666;
+                font-family: monospace; font-size: 22px;
+                border-radius: 10px; z-index: 9999;
+                user-select: none; min-width: 280px;
+                touch-action: none;
             }
             #debug-panel h3 {
-                margin: 0 0 8px; color: yellow;
-                font-size: 13px; letter-spacing: 1px;
+                margin: 0 0 14px; color: yellow;
+                font-size: 22px; letter-spacing: 1px;
             }
             #debug-panel label {
                 display: flex; align-items: center;
-                gap: 7px; cursor: pointer; margin: 5px 0;
+                gap: 12px; cursor: pointer; margin: 10px 0;
+                min-height: 36px;
             }
-            #debug-panel input[type=checkbox] { cursor: pointer; }
+            #debug-panel input[type=checkbox] {
+                cursor: pointer; width: 22px; height: 22px;
+                flex-shrink: 0;
+            }
             #debug-panel button {
-                margin-top: 8px; width: 100%;
+                margin-top: 14px; width: 100%;
                 background: #333; color: #eee;
-                border: 1px solid #666; border-radius: 4px;
-                font-family: monospace; font-size: 13px;
-                padding: 4px 0; cursor: pointer;
+                border: 2px solid #666; border-radius: 6px;
+                font-family: monospace; font-size: 22px;
+                padding: 8px 0; cursor: pointer; min-height: 44px;
             }
             #debug-panel button:hover { background: #444; }
             </style>
@@ -817,6 +822,11 @@ window.onload = function () {
             <button id="dbg-pause">⏸ Pause</button>
         `;
         document.body.appendChild(panel);
+
+        // Stop touch events from bubbling to the document touchstart handler
+        // (which calls e.preventDefault(), blocking browser click synthesis)
+        panel.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+        panel.addEventListener('touchend',   (e) => e.stopPropagation(), { passive: true });
 
         (document.getElementById('dbg-targets') as HTMLInputElement).onchange = (e) => {
             gameState.debugShowTargetTiles = (e.target as HTMLInputElement).checked;
