@@ -201,7 +201,7 @@ export class Draw {
 
         ctx.arc(curX, curY, ghostSize, Math.PI, 0, false);
 
-        curX += unit - ghostSize / 2;
+        curX += ghostSize;
         curY += ghostSize / 2 + ghostSize / 3;
         ctx.lineTo(curX, curY);
 

@@ -848,8 +848,9 @@ function drawMenuChase(t: number): void {
             drawMenuPacman(ctx, pacX, y, size, 'right', mouthOpen);
         }
     } else {
-        // Frightened ghosts fleeing left, Pac-Man chasing
-        const pacX = w + unit - totalDist * progress;
+        // Frightened ghosts fleeing left, Pac-Man chasing (double size)
+        const pacX = w + unit + ghostColors.length * spacing - totalDist * progress;
+        const pacSize2 = scale * unit * 2;
         for (let i = 0; i < ghostColors.length; i++) {
             const gx = pacX - (i + 1) * spacing;
             if (gx < -2 * unit || gx > w + 2 * unit) continue;
@@ -857,7 +858,7 @@ function drawMenuChase(t: number): void {
             Draw.drawFrightenedEyes(gx, y, scale, '#0000cc');
         }
         if (pacX > -2 * unit && pacX < w + 2 * unit) {
-            drawMenuPacman(ctx, pacX, y, size, 'left', mouthOpen);
+            drawMenuPacman(ctx, pacX, y, pacSize2, 'left', mouthOpen);
         }
     }
 }
