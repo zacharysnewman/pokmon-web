@@ -83,11 +83,14 @@ All design questions resolved. No open items.
 - Game loop: `for (const p of gameState.players) p.input.update(p.actor)` replaces `Input.update()`
 - `destroy()` called on each input instance when returning to menu
 
+### Functional after this phase
+Single-player game works identically. Input is now routed through the new classes but P1 still responds to arrow keys and touch exactly as before. Controller support is live — plugging in a gamepad lets it drive P1 alongside the keyboard.
+
 ---
 
-## Phase 2 — Player State Extraction
+## Phase 2 — State Restructuring
 
-**Goal:** Everything that currently describes "one Pac-Man" becomes a `PlayerState` — grouping actor, input, stats, and death state together.
+**Goal:** Group all Pac-Man–specific state into a `PlayerState` object; move `lives` out of `Stats` into a shared pool on `gameState`; parameterize movement. All existing single-player behaviour is preserved — there is now just one player in a `players[]` array instead of a flat `gameState.pacman`.
 
 ### `src/types.ts`
 Add:
@@ -96,71 +99,44 @@ export interface PlayerState {
   id: number               // 1–4
   actor: IGameObject
   input: PlayerInput
-  stats: PlayerStats       // see Phase 3
   frozen: boolean          // replaces gameState.pacmanFrozen (per-player ghost-eat freeze)
   dying: boolean           // replaces gameState.pacmanDying
   deathProgress: number    // replaces gameState.pacmanDeathProgress
-  active: boolean          // false once eliminated (shared pool depleted on their death)
+  active: boolean          // false while sitting out mid-level
 }
 ```
 
 ### `src/game-state.ts`
 - Add `players: PlayerState[]`
-- Add `sharedLives: number` — the global life pool, starts at 3 regardless of player count
+- Add `sharedLives: number` — replaces `Stats.lives`
 - Remove: `pacman`, `pacmanFrozen`, `pacmanDying`, `pacmanDeathProgress`
 - Keep all ghost state, maze state, scatter/chase, frightened, elroy, and fruit as **shared**
 - `frozen` flag remains global (level clear, ready screen)
 
----
-
-## Phase 3 — Shared Score & Stats Cleanup
-
-**Goal:** Score is a single shared value (not per-player). Move `lives` out of `Stats` and into `gameState`.
-
 ### `src/static/Stats.ts`
-- Remove `lives` static property — replaced by `gameState.sharedLives`
-- Keep `currentScore` as-is (already a single value — no change needed for multiplayer)
-- Keep `extraLifeAwarded` — rename to `extraLifeAwardedThisGame` for clarity; still fires once per game when shared score crosses 10,000, adding 1 to `gameState.sharedLives`
-- All other static methods unchanged: `highScore`, `loadHighScores()`, `saveScore()`, `qualifiesForTopTen()`, `loadBestScore()`
-
-### `src/game-state.ts`
-- Add `sharedLives: number` (already noted in Phase 2)
-- No `currentScore` move needed — `Stats.currentScore` works fine as-is
-
-### `src/static/Draw.ts` — `Draw.hud()`
-- Score display unchanged from single-player layout: `SCORE` top-left, `HIGH SCORE` center
-- **Shared lives pool** bottom-left (same Pacman icons, now representing the pool not individual lives)
-- Inactive (dead) players rendered with a distinct visual on their Pacman actor (see Phase 7)
-
----
-
-## Phase 4 — Parameterize `Move.pacman()`
-
-**Goal:** Movement logic operates on a `PlayerState` rather than the global `gameState.pacman`.
+- Remove `lives` static property — all references updated to `gameState.sharedLives`
+- Keep `currentScore` as-is (single shared value, no change needed)
+- Rename `extraLifeAwarded` → `extraLifeAwardedThisGame` for clarity; still adds 1 to `gameState.sharedLives` when score crosses 10,000, once per game
 
 ### `src/static/Move.ts`
 - `Move.pacman()` → `Move.pacman(player: PlayerState)`
 - Replace `gameState.pacman` → `player.actor`
 - Replace `gameState.pacmanFrozen` → `player.frozen`
-- `gameState.frozen` check remains (global freeze still applies to all players)
-- Ghost move functions unchanged — they already accept `IGameObject` via closure
+- `gameState.frozen` check remains (global freeze still applies)
 
-### `src/Game.ts` — game loop
-```ts
-// Before
-Move.pacman()
+### `src/Game.ts`
+- `gameState.players = [singlePlayer]` at startup — all existing loops now iterate one element
+- Game loop: `for (const p of gameState.players) { if (p.active && !p.dying) Move.pacman(p) }`
+- All `Stats.lives` references updated to `gameState.sharedLives`
 
-// After
-for (const p of gameState.players) {
-  if (p.active && !p.dying) Move.pacman(p)
-}
-```
+### Functional after this phase
+Single-player game works identically to before. `players[]` has one entry. No behaviour change visible to the player.
 
 ---
 
-## Phase 5 — Parameterize Tile Callbacks & Collision
+## Phase 3 — Game Logic: Collision, Death & Dot Eating
 
-**Goal:** Dot eating, collision, and death all operate on a specific player.
+**Goal:** Dot eating, collision, and death all operate on a specific player. The death model changes to support multiple players sitting out mid-level.
 
 ### `src/Game.ts` — `pacmanOnTileChanged`
 Convert from free function to factory:
@@ -201,28 +177,39 @@ function checkCollisions(): void {
 - `player.frozen = true` for 0.5s — only freezes that player; other players and ghosts keep moving
 
 ### `src/Game.ts` — `loseLife(player)`
-- `gameState.sharedLives = Math.max(0, gameState.sharedLives - 1)`
 - Sets `player.dying = true`, `player.deathProgress = 0`
 - **No global `gameState.frozen`** — other players and all ghosts continue unaffected
-- After death animation completes: `player.dying = false`, `player.active = false` — player sits out for the rest of the level
-- **No READY! sequence, no position reset** at this point — that only happens at level start/clear
-- Game over check after death anim: `if (gameState.players.every(p => !p.active)) triggerGameOver()`
+- After death animation completes: `player.dying = false`, `player.active = false` — player sits out
+- Check if any players are still active:
+  - **Yes** — game continues; dead player sits out until next level start
+  - **No (all players inactive):**
+    - If `gameState.sharedLives > 0`: `sharedLives--`, reset all player positions, READY! sequence, resume — same level
+    - If `gameState.sharedLives === 0`: `triggerGameOver()`
+
+This means in **single-player**, dying behaves as before: death anim → READY! → same level (costs a life). In **multiplayer**, a player sits out while others continue; the lives pool is only consumed when everyone is down simultaneously.
 
 ### `src/Game.ts` — `levelClear()`
-- Players revived at level start: `p.active = true`, `p.dying = false` for all players where `gameState.sharedLives > 0`
-- Players who ran the pool to 0 (dead with 0 lives) stay `active = false` — they are fully eliminated
-- Shared lives pool **not reset** on level clear — it carries over; it only starts at 3 at game start
-- All active player positions reset to start tile
+- `p.active = true`, `p.dying = false` for **all** players — level clear revives everyone regardless of lives pool
+- Shared lives pool **not reset** on level clear — it carries over; it only resets to 3 at game start
+- All player positions reset to start tile
 - READY! sequence plays as normal
 
 ### `src/Game.ts` — `checkFruitCollision()`
 - Loop over all active players; first player to collide eats the fruit (removed on first hit)
 
+### `src/Game.ts` — `updateAmbientSiren()`
+- Stop siren only on global `gameState.frozen` or `gameState.gameOver` — individual player deaths no longer set `gameState.frozen`, so siren keeps playing through them
+- Individual `player.frozen` (ghost-eat pause) does not stop the siren
+- Priority unchanged: `eyes` > `blue` > `normal`
+
+### Functional after this phase
+Single-player game works as before — die, READY!, same level, 3 lives. The only visible change is ghosts no longer freeze during the death animation (they keep moving while the anim plays).
+
 ---
 
-## Phase 6 — Ghost AI Multi-Target
+## Phase 4 — Ghost AI Multi-Target
 
-**Goal:** Ghost targeting picks the nearest active player rather than a hardcoded single Pacman.
+**Goal:** Ghost targeting picks the nearest active player rather than a hardcoded single Pacman. In single-player there is only one player so behaviour is identical to before.
 
 ### `src/static/AI.ts` — `ghostTileCenter(ghost)`
 Add helper:
@@ -250,11 +237,14 @@ All chase-mode targeting resolves the Pacman reference through `nearestPlayer()`
 - Accept any `IGameObject` instead of always reading `gameState.pacman`
 - Same upward overflow bug preserved
 
+### Functional after this phase
+Single-player game works identically — `nearestPlayer()` with one active player always returns that player. No visible change.
+
 ---
 
-## Phase 7 — Rendering Updates
+## Phase 5 — Rendering Updates
 
-**Goal:** Canvas correctly renders up to 4 Pacmen and a multi-player HUD.
+**Goal:** Canvas correctly renders up to 4 Pacmen and their props. HUD reads from the shared lives pool.
 
 ### `src/static/Draw.ts` — `Draw.pacman(obj, player)`
 - Draw function closes over player: `(obj) => Draw.pacman(obj, player)`
@@ -308,9 +298,12 @@ for (const p of gameState.players) {
 - Contains all 4 ghost actors + all active player actors
 - Order: player actors first (drawn under ghosts), then ghosts
 
+### Functional after this phase
+Single-player game works as before with P1's standard no-prop appearance. Props are ready for use when additional players are added in Phase 7.
+
 ---
 
-## Phase 8 — Player Selection Menu
+## Phase 6 — Player Selection Menu
 
 **Goal:** Screen between the start screen and gameplay showing player slots and connected controllers.
 
@@ -347,58 +340,21 @@ New game phase after tapping start:
   interface PlayerSlot { id: number; active: boolean; inputLabel: string; color: string }
   ```
 
----
-
-## Phase 9 — Game Over / End Screen
-
-**Goal:** End state shows the shared final score, prompts for one set of initials if it qualifies.
-
-### `src/Game.ts` — game over trigger
-- Each frame after a death completes: `if (gameState.players.every(p => !p.active)) triggerGameOver()`
-- Game continues as long as at least one player is active
-
-### `src/static/Draw.ts` — `Draw.gameOverScreen()`
-- Same layout as single-player: dark overlay, red `GAME OVER`, shared final score
-- No per-player breakdown needed (score is shared)
-
-### `src/Game.ts` — initials entry
-- Unchanged from single-player: one prompt, one set of initials, `Stats.saveScore(initials, Stats.currentScore)`
-- After entry (or skip if score doesn't qualify): return to menu
+### Functional after this phase
+Player count is determined before the game starts. 1P still works exactly as before (P1 only, no controllers needed). Plugging in 1–3 extra controllers enables 2P–4P.
 
 ---
 
-## Phase 10 — Sound Adjustments
+## Phase 7 — Player Factory & Initialization
 
-**Goal:** Sound events fire correctly for multi-player scenarios.
-
-### `src/static/Sound.ts`
-- `Sound.death()` — Web Audio is polyphonic; overlapping death sounds play naturally; no change
-- `Sound.dot()` — fires for any player eating; stateless; no change
-- `Sound.ghostEaten()` — fires on any player eating a ghost; no change
-
-### `src/Game.ts` — `updateAmbientSiren()`
-- Stop siren only on global `gameState.frozen` or `gameState.gameOver`
-- Individual player deaths no longer trigger `gameState.frozen`, so siren keeps playing through them — no change needed
-- Individual `player.frozen` (ghost-eat pause for that player) does not stop the siren
-- Siren state priority unchanged: `eyes` > `blue` > `normal`
-
-### `src/Game.ts` — `Sound.death()`
-- With multiple players potentially dying close together, death sounds may overlap — Web Audio handles this naturally; no change needed
-
----
-
-## Phase 11 — Actor Construction & `GameObject` Cleanup
-
-**Goal:** Clean, scalable factory for creating player actors.
+**Goal:** `initializeLevel()` and `start()` construct the correct number of player actors from the confirmed slots. All players spawn, move, eat, and die correctly.
 
 ### `src/Game.ts` — player factory
 ```ts
-function createPlayer(id: number, startTile: {x: number, y: number}, input: PlayerInput, color: string): PlayerState {
-  const stats = new PlayerStats()
-  // playerState ref needed in closures below
-  let playerState: PlayerState
+function createPlayer(id: number, startTile: { x: number; y: number }, input: PlayerInput): PlayerState {
+  let playerState: PlayerState  // ref needed in closures below
   const actor = new GameObject(
-    color,
+    'yellow',
     startTile.x, startTile.y,
     0.667,
     () => Move.pacman(playerState),
@@ -406,48 +362,63 @@ function createPlayer(id: number, startTile: {x: number, y: number}, input: Play
     (x, y) => makePacmanOnTileChanged(playerState)(x, y),
     (_x, _y) => {},
   )
-  playerState = { id, actor, input, stats, frozen: false, dying: false, deathProgress: 0, active: true }
+  playerState = { id, actor, input, frozen: false, dying: false, deathProgress: 0, active: true }
   return playerState
 }
 ```
 
-Starting positions for multi-player — all players currently share `(13.5, 26)`. Options:
-- All stack on same tile (they pass through each other)
-- Spread horizontally along row 26 (needs safe-tile verification)
-- Stagger slightly and snap to nearest safe tile at game start
+### Starting positions
+All players start at the same tile `(13.5, 26)` — they pass through each other freely (no player-player collision). This is the simplest approach and matches the arcade feel.
 
 ### `src/Game.ts` — `initializeLevel()` and `start()`
-- `start()` reads confirmed player slots from player select screen
-- `gameState.players = slots.map(s => createPlayer(s.id, START.pacman, s.input, s.color))`
+- `start(slots)` receives confirmed slots from the player select screen
+- `gameState.players = slots.map(s => createPlayer(s.id, START.pacman, s.input))`
 - `gameState.sharedLives = 3`
 - `gameState.gameObjects = [...gameState.players.map(p => p.actor), ...gameState.ghosts]`
 
 ### `src/object/GameObject.ts`
-- No structural changes required
+No structural changes required.
+
+### Functional after this phase
+Full multiplayer is now live — 1 to 4 players can play simultaneously, each controlled independently, sharing a life pool, sitting out on death and reviving on level clear. The only missing piece is the player select screen (Phase 6) wiring into `start()`, and the game over/menu flow (Phase 8).
 
 ---
 
-## Phase 12 — Menu Flow Wiring
+## Phase 8 — Menu Flow & Game Over
 
-**Goal:** Complete flow from start screen → player select → gameplay → game over → start screen.
+**Goal:** Complete end-to-end flow: start screen → player select → gameplay → game over → start screen.
 
 ### Flow
 ```
 startScreenLoop()
   └─ tap/click
        └─ playerSelectLoop()
-            └─ start pressed (≥1 player joined)
-                 └─ start(confirmedSlots)
+            └─ start pressed (≥1 player present)
+                 └─ start(slots)
                       └─ update() [game loop]
-                           └─ all players dead
-                                └─ gameOverSequence()
-                                     └─ initials entry (per qualifying player, sequential)
-                                          └─ returningToMenu = true
-                                               └─ startScreenLoop()
+                           └─ all players inactive + sharedLives === 0
+                                └─ triggerGameOver()
+                                     └─ Draw.gameOverScreen()
+                                          └─ initials entry if score qualifies
+                                               └─ returningToMenu = true
+                                                    └─ startScreenLoop()
 ```
 
-### `src/Game.ts`
-- `gameStarted` flag set after player select, not immediately on tap
-- `returningToMenu` unchanged — resets to start screen
-- `start(slots)` constructs players from confirmed slots, initializes level, starts update loop
-- Touch controls: `setupTouchControls()` wires swipe for players using touch input only
+### `src/Game.ts` — game over trigger
+- After any death completes, if `gameState.players.every(p => !p.active) && gameState.sharedLives === 0`: `triggerGameOver()`
+- Game continues as long as at least one player is active or lives remain for a reset
+
+### `src/static/Draw.ts` — `Draw.gameOverScreen()`
+- Unchanged from single-player: dark overlay, red `GAME OVER`, shared final score
+
+### `src/Game.ts` — initials entry
+- Unchanged from single-player: one prompt, one set of initials, `Stats.saveScore(initials, Stats.currentScore)`
+- After entry (or skip if score doesn't qualify): `returningToMenu = true`
+
+### `src/Game.ts` — wiring
+- `gameStarted` flag set after player select, not immediately on first tap
+- `start(slots)` constructs players from confirmed slots, initialises level, starts update loop
+- `returningToMenu` path unchanged — cleans up inputs, stops siren, returns to `startScreenLoop()`
+
+### Functional after this phase
+Complete multiplayer game. Start screen → player select → 1–4P game → game over → back to start. All phases integrated.
