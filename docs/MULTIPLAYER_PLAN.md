@@ -30,7 +30,7 @@ All design questions resolved. No open items.
 
 ---
 
-## Phase 1 — Input Abstraction
+## Phase 1 — Input Abstraction ✅ COMPLETE
 
 **Goal:** Replace the global `Input` static class with instantiable, player-owned input handlers that support keyboard and gamepad.
 
