@@ -88,7 +88,7 @@ Single-player game works identically. Input is now routed through the new classe
 
 ---
 
-## Phase 2 — State Restructuring
+## Phase 2 — State Restructuring ✅ COMPLETE
 
 **Goal:** Group all Pac-Man–specific state into a `PlayerState` object; move `lives` out of `Stats` into a shared pool on `gameState`; parameterize movement. All existing single-player behaviour is preserved — there is now just one player in a `players[]` array instead of a flat `gameState.pacman`.
 

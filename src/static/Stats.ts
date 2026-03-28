@@ -1,3 +1,5 @@
+import { gameState } from '../game-state';
+
 const LS_KEY = 'pacman-scores';
 
 export interface HighScoreEntry {
@@ -19,10 +21,9 @@ const DEFAULT_SCORES: HighScoreEntry[] = [
 ];
 
 export class Stats {
-    static lives = 3;
     static currentScore = 0;
     static highScore = Stats.loadBestScore();
-    static extraLifeAwarded = false;
+    static extraLifeAwardedThisGame = false;
 
     private static loadBestScore(): number {
         const scores = Stats.loadHighScores();
@@ -63,15 +64,14 @@ export class Stats {
         const wasBelow10k = Stats.currentScore < 10000;
         Stats.currentScore += points;
         if (Stats.currentScore > Stats.highScore) Stats.highScore = Stats.currentScore;
-        if (wasBelow10k && Stats.currentScore >= 10000 && !Stats.extraLifeAwarded) {
-            Stats.extraLifeAwarded = true;
-            Stats.lives++;
+        if (wasBelow10k && Stats.currentScore >= 10000 && !Stats.extraLifeAwardedThisGame) {
+            Stats.extraLifeAwardedThisGame = true;
+            gameState.sharedLives++;
         }
     }
 
     static reset(): void {
-        Stats.lives = 3;
         Stats.currentScore = 0;
-        Stats.extraLifeAwarded = false;
+        Stats.extraLifeAwardedThisGame = false;
     }
 }

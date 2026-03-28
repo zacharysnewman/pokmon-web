@@ -5,14 +5,14 @@ import { Levels } from './Levels';
 import { Time } from './Time';
 import { Draw } from './Draw';
 import { AI } from './AI';
-import type { IGameObject } from '../types';
+import type { IGameObject, PlayerState } from '../types';
 
 export class Move {
-    static pacman(): void {
-        if (gameState.frozen || gameState.pacmanFrozen) return;
-        Move.moveObject(gameState.pacman);
+    static pacman(player: PlayerState): void {
+        if (gameState.frozen || player.frozen) return;
+        Move.moveObject(player.actor);
 
-        const p = gameState.pacman;
+        const p = player.actor;
         if (p.moveDir === 'right' || p.moveDir === 'left') {
             p.y = lerp(p.y, p.roundedAbsoluteY(), 0.1);
         } else if (p.moveDir === 'up' || p.moveDir === 'down') {
@@ -22,7 +22,7 @@ export class Move {
 
     static blinky(): void {
         if (gameState.frozen) return;
-        if (gameState.pacmanFrozen && gameState.blinky.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && gameState.blinky.ghostMode !== 'eyes') return;
         const g = gameState.blinky;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
@@ -32,7 +32,7 @@ export class Move {
     static inky(): void {
         if (gameState.frozen) return;
         const g = gameState.inky;
-        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
@@ -41,7 +41,7 @@ export class Move {
     static pinky(): void {
         if (gameState.frozen) return;
         const g = gameState.pinky;
-        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
@@ -50,7 +50,7 @@ export class Move {
     static clyde(): void {
         if (gameState.frozen) return;
         const g = gameState.clyde;
-        if (gameState.pacmanFrozen && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);

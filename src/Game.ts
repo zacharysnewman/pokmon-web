@@ -9,7 +9,7 @@ import { Stats }  from './static/Stats';
 import type { HighScoreEntry } from './static/Stats';
 import { Sound }  from './static/Sound';
 import { GameObject } from './object/GameObject';
-import type { IGameObject, Direction } from './types';
+import type { IGameObject, Direction, PlayerState } from './types';
 import { KeyboardPlayerInput } from './input/KeyboardPlayerInput';
 import { TouchPlayerInput    } from './input/TouchPlayerInput';
 import { GamepadPlayerInput  } from './input/GamepadPlayerInput';
@@ -58,11 +58,14 @@ function updateFruit(): void {
 function checkFruitCollision(): void {
     if (!gameState.fruitActive) return;
     const { x: fx, y: fy } = gameState.fruitActive;
-    if (Math.abs(gameState.pacman.x - fx) < unit && Math.abs(gameState.pacman.y - fy) < unit) {
-        const score = getFruitPoints(gameState.level);
-        Stats.addToScore(score);
-        gameState.scorePopups.push({ x: fx, y: fy, score, endTime: Time.timeSinceStart + 2.0 });
-        gameState.fruitActive = null;
+    for (const player of gameState.players) {
+        if (player.active && Math.abs(player.actor.x - fx) < unit && Math.abs(player.actor.y - fy) < unit) {
+            const score = getFruitPoints(gameState.level);
+            Stats.addToScore(score);
+            gameState.scorePopups.push({ x: fx, y: fy, score, endTime: Time.timeSinceStart + 2.0 });
+            gameState.fruitActive = null;
+            break;
+        }
     }
 }
 
@@ -313,7 +316,7 @@ function updateFrightenedMode(dt: number): void {
     if (gameState.frightenedRemaining <= 0) return;
     // Pause the countdown during ghost-eating freeze so those pauses don't
     // consume vulnerability time (matches original arcade behavior)
-    if (!gameState.pacmanFrozen) {
+    if (!gameState.players.some(p => p.frozen)) {
         gameState.frightenedRemaining -= dt;
     }
     if (gameState.frightenedRemaining > 0) return;
@@ -327,8 +330,10 @@ function updateFrightenedMode(dt: number): void {
         }
     }
     // Restore Pac-Man speed if not currently paused for a dot
-    if (gameState.pacman.moveSpeed !== 0) {
-        gameState.pacman.moveSpeed = getPacmanNormalSpeed(gameState.level);
+    for (const player of gameState.players) {
+        if (player.actor.moveSpeed !== 0) {
+            player.actor.moveSpeed = getPacmanNormalSpeed(gameState.level);
+        }
     }
 }
 
@@ -348,8 +353,8 @@ function eatGhost(ghost: IGameObject): void {
 
     // Freeze Pac-Man briefly while score is shown; popup stays visible for 1s
     // but the freeze is shorter so other frightened ghosts don't stop as long
-    gameState.pacmanFrozen = true;
-    Time.addTimer(0.5, () => { gameState.pacmanFrozen = false; });
+    gameState.players[0].frozen = true;
+    Time.addTimer(0.5, () => { gameState.players[0].frozen = false; });
 
     Sound.ghostEaten();
 
@@ -467,11 +472,13 @@ function makeGhostTileCentered(getGhost: () => IGameObject): (_x: number, _y: nu
 // ── Positions & Reset ─────────────────────────────────────────────────────────
 
 function resetPositions(afterDeath = false): void {
-    // Pac-Man
-    const pm = gameState.pacman;
+    // Players
     const pmPos = tileToPixel(START.pacman.x, START.pacman.y);
-    pm.x = pmPos.x; pm.y = pmPos.y;
-    pm.moveDir = 'left'; pm.moveSpeed = getPacmanNormalSpeed(gameState.level);
+    for (const player of gameState.players) {
+        player.actor.x = pmPos.x; player.actor.y = pmPos.y;
+        player.actor.moveDir = 'left'; player.actor.moveSpeed = getPacmanNormalSpeed(gameState.level);
+        player.frozen = false;
+    }
 
     // Blinky always starts outside
     const bl = gameState.blinky;
@@ -508,7 +515,6 @@ function resetPositions(afterDeath = false): void {
     gameState.frightenedRemaining = 0;
     gameState.ghostEatenChain = 0;
     gameState.scorePopups = [];
-    gameState.pacmanFrozen = false;
     gameState.fruitActive = null;
     // Cruise Elroy: suspend after death; clear for fresh level start
     gameState.elroyLevel = 0;
@@ -613,16 +619,17 @@ const DEATH_ANIM_DURATION = 2.0;
 
 function loseLife(): void {
     if (gameState.frozen || gameState.gameOver) return;
+    const player = gameState.players[0];
     gameState.frozen = true;
-    gameState.pacmanDying = true;
-    gameState.pacmanDeathProgress = 0;
+    player.dying = true;
+    player.deathProgress = 0;
     Sound.death();
-    Stats.lives--;
+    gameState.sharedLives--;
 
-    if (Stats.lives <= 0) {
+    if (gameState.sharedLives <= 0) {
         gameState.gameOver = true;
         Time.addTimer(DEATH_ANIM_DURATION, () => {
-            gameState.pacmanDying = false;
+            player.dying = false;
             // After death anim, show game-over then enter initials / return to menu
             Time.addTimer(1.5, () => {
                 if (Stats.qualifiesForTopTen(Stats.currentScore)) {
@@ -638,7 +645,7 @@ function loseLife(): void {
     }
 
     Time.addTimer(DEATH_ANIM_DURATION, () => {
-        gameState.pacmanDying = false;
+        player.dying = false;
         resetPositions(true);
         gameState.showReady = true;
         Time.addTimer(1.5, () => {
@@ -651,16 +658,19 @@ function loseLife(): void {
 // ── Collision Detection ───────────────────────────────────────────────────────
 
 function checkCollisions(): void {
-    const px = gameState.pacman.roundedX();
-    const py = gameState.pacman.roundedY();
-    for (const ghost of gameState.ghosts) {
-        if (ghost.roundedX() === px && ghost.roundedY() === py) {
-            if (ghost.ghostMode === 'frightened') {
-                eatGhost(ghost);
-            } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
-                       ghost.ghostMode !== 'exiting') {
-                loseLife();
-                return;
+    for (const player of gameState.players) {
+        if (!player.active || player.dying || player.frozen) continue;
+        const px = player.actor.roundedX();
+        const py = player.actor.roundedY();
+        for (const ghost of gameState.ghosts) {
+            if (ghost.roundedX() === px && ghost.roundedY() === py) {
+                if (ghost.ghostMode === 'frightened') {
+                    eatGhost(ghost);
+                } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
+                           ghost.ghostMode !== 'exiting') {
+                    loseLife();
+                    return;
+                }
             }
         }
     }
@@ -671,12 +681,14 @@ function checkCollisions(): void {
 function pacmanOnTileChanged(x: number, y: number): void {
     const curTile = Levels.levelDynamic[y][x];
 
+    const pacActor = gameState.players[0].actor;
+
     // Small dot
     if (curTile === 3) {
         Levels.levelDynamic[y][x] = 5;
         Stats.addToScore(10);
-        gameState.pacman.moveSpeed = 0.0;
-        Time.addTimer(0.01666666667, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
+        pacActor.moveSpeed = 0.0;
+        Time.addTimer(0.01666666667, () => { pacActor.moveSpeed = getCurrentPacmanSpeed(); });
         incrementDotCounters();
         Sound.dot();
         if (countRemainingDots() === 0) levelClear();
@@ -686,8 +698,8 @@ function pacmanOnTileChanged(x: number, y: number): void {
     if (curTile === 4) {
         Levels.levelDynamic[y][x] = 5;
         Stats.addToScore(50);
-        gameState.pacman.moveSpeed = 0.0;
-        Time.addTimer(0.05, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
+        pacActor.moveSpeed = 0.0;
+        Time.addTimer(0.05, () => { pacActor.moveSpeed = getCurrentPacmanSpeed(); });
         incrementDotCounters();
         Sound.energizer();
         activateFrightened();
@@ -709,13 +721,22 @@ function initializeLevel(): void {
     gameState.personalDotCounters = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
     gameState.modeChangesInHouse  = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
 
-    gameState.pacman = new GameObject('yellow',  START.pacman.x, START.pacman.y, 0.667, Move.pacman, Draw.pacman, pacmanOnTileChanged, pacmanOnTileCentered);
+    // Create player 1: use definite-assignment pattern so closure captures ref before assignment
+    let p1State!: PlayerState;
+    const pacmanActor = new GameObject('yellow', START.pacman.x, START.pacman.y, 0.667,
+        () => Move.pacman(p1State),
+        Draw.pacman,
+        pacmanOnTileChanged,
+        pacmanOnTileCentered);
+    p1State = { id: 1, actor: pacmanActor, input: p1Input!, frozen: false, dying: false, deathProgress: 0, active: true };
+    gameState.players = [p1State];
+
     gameState.blinky = new GameObject('red',     START.blinky.x, START.blinky.y, 0.667, Move.blinky, Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.blinky));
     gameState.inky   = new GameObject('cyan',    START.inky.x,   START.inky.y,   0.667, Move.inky,   Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.inky));
     gameState.pinky  = new GameObject('hotpink', START.pinky.x,  START.pinky.y,  0.667, Move.pinky,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.pinky));
     gameState.clyde  = new GameObject('orange',  START.clyde.x,  START.clyde.y,  0.667, Move.clyde,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.clyde));
 
-    gameState.gameObjects = [gameState.pacman, gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
+    gameState.gameObjects = [pacmanActor, gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
     gameState.ghosts      = [gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
 
     // resetPositions sets all positions, modes, and triggers initial house releases
@@ -744,14 +765,15 @@ function update(): void {
         gameStarted = false;
         Sound.stopSiren();
         menuMusicPlaying = false; // startScreenLoop will auto-play since audio is unlocked
-        p1Input?.destroy();
+        for (const p of gameState.players) p.input.destroy();
+        gameState.players = [];
         p1Input = null;
         startScreenLoop();
         return; // end this loop; startScreenLoop starts its own rAF
     }
 
     if (!gameState.frozen && !gameState.gameOver) {
-        p1Input?.update(gameState.pacman);
+        for (const p of gameState.players) p.input.update(p.actor);
         updateScatterChaseMode(Time.deltaTime);
         updateFrightenedMode(Time.deltaTime);
         updateElroy();
@@ -763,10 +785,10 @@ function update(): void {
         Sound.stopSiren();
     }
 
-    if (gameState.pacmanDying) {
-        gameState.pacmanDeathProgress = Math.min(
-            gameState.pacmanDeathProgress + Time.deltaTime / DEATH_ANIM_DURATION, 1.0,
-        );
+    for (const p of gameState.players) {
+        if (p.dying) {
+            p.deathProgress = Math.min(p.deathProgress + Time.deltaTime / DEATH_ANIM_DURATION, 1.0);
+        }
     }
 
     Draw.level();
@@ -796,6 +818,7 @@ function update(): void {
 function start(): void {
     // Full game state reset for a fresh play
     Stats.reset();
+    gameState.sharedLives = 3;
     gameState.level = 1;
     gameState.scatterChaseIndex = 0;
     gameState.scatterChaseElapsed = 0;

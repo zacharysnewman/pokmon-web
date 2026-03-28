@@ -82,8 +82,8 @@ export class AI {
         } else if (mode === 'scatter') {
             // Cruise Elroy: Blinky overrides scatter to keep chasing Pac-Man
             if (obj.color === 'red' && gameState.elroyLevel > 0) {
-                targetX = gameState.pacman.roundedX();
-                targetY = gameState.pacman.roundedY();
+                targetX = gameState.players[0].actor.roundedX();
+                targetY = gameState.players[0].actor.roundedY();
             } else {
                 const corner = SCATTER_TARGETS[obj.color] ?? { x: 0, y: 0 };
                 targetX = corner.x;
@@ -91,7 +91,7 @@ export class AI {
             }
         } else {
             // chase — per-ghost authentic targeting
-            const pacman = gameState.pacman;
+            const pacman = gameState.players[0].actor;
             if (obj.color === 'hotpink') {
                 // Pinky: 4 tiles ahead of Pac-Man (with up overflow bug)
                 const ahead = AI.tilesAheadOfPacman(4);
@@ -159,7 +159,7 @@ export class AI {
     // Reproduces the upward overflow bug from the original ROM:
     // when Pac-Man faces up, both x and y are offset by -N (instead of just y).
     static tilesAheadOfPacman(n: number): { x: number; y: number } {
-        const pacman = gameState.pacman;
+        const pacman = gameState.players[0].actor;
         const px = pacman.roundedX();
         const py = pacman.roundedY();
         switch (pacman.moveDir) {

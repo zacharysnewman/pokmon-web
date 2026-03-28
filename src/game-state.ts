@@ -1,9 +1,10 @@
-import type { IGameObject } from './types';
+import type { IGameObject, PlayerState } from './types';
 
 export const gameState = {
     canvas: null as unknown as HTMLCanvasElement,
     ctx: null as unknown as CanvasRenderingContext2D,
-    pacman: null as unknown as IGameObject,
+    players: [] as PlayerState[],
+    sharedLives: 0,
     blinky: null as unknown as IGameObject,
     inky: null as unknown as IGameObject,
     pinky: null as unknown as IGameObject,
@@ -11,7 +12,6 @@ export const gameState = {
     gameObjects: [] as IGameObject[],
     ghosts: [] as IGameObject[],
     frozen: false,
-    pacmanFrozen: false,
     gameOver: false,
     level: 1,
     // Scatter/chase mode state (Phase 2)
@@ -38,9 +38,6 @@ export const gameState = {
     elroySuspended: false,          // true after Pac-Man death; clears when Clyde exits house
     // Ready state (Phase 10)
     showReady: false,
-    // Death animation
-    pacmanDying: false,
-    pacmanDeathProgress: 0,
     // Debug overlay (enabled via ?dev=true)
     debugEnabled: false,
     debugShowTargetTiles: false,

@@ -55,7 +55,7 @@ export class Draw {
     }
 
     static pacman(obj: IGameObject): void {
-        if (gameState.pacmanDying) { Draw.pacmanDeathAnim(obj); return; }
+        if (gameState.players.some(p => p.dying)) { Draw.pacmanDeathAnim(obj); return; }
         const { color, x, y, scale } = obj;
         const ctx = gameState.ctx;
         const frames = [0.0, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1];
@@ -85,7 +85,7 @@ export class Draw {
         ctx.fill();
 
         // Advance only during active game time (pauses when frozen or eating-ghost freeze)
-        if (!gameState.frozen && !gameState.pacmanFrozen) {
+        if (!gameState.frozen && !gameState.players.some(p => p.frozen)) {
             Draw.pacmanAnimTime += Time.deltaTime;
         }
         Draw.pacmanAnim = Math.floor(Draw.pacmanAnimTime * frameChangePerSecond) % frames.length;
@@ -95,7 +95,7 @@ export class Draw {
         const ctx = gameState.ctx;
         const { x, y, scale, moveDir } = obj;
         const size = scale * unit;
-        const p = gameState.pacmanDeathProgress;
+        const p = gameState.players.find(pl => pl.dying)?.deathProgress ?? 0;
 
         // Phase 1 (0 → 0.62): mouth opens progressively wider until Pac-Man vanishes
         const OPEN_END = 0.62;
@@ -189,7 +189,7 @@ export class Draw {
     }
 
     static ghost(obj: IGameObject): void {
-        if (gameState.pacmanDying) return;
+        if (gameState.players.some(p => p.dying)) return;
         const { color, x, y, scale, ghostMode } = obj;
 
         if (ghostMode === 'eyes') {
@@ -428,7 +428,7 @@ export class Draw {
         // Lives (bottom row, represented as small yellow circles)
         const livesY = (gridH - 1) * unit + unit / 2;
         ctx.fillStyle = 'yellow';
-        for (let i = 0; i < Stats.lives; i++) {
+        for (let i = 0; i < gameState.sharedLives; i++) {
             const cx = unit + i * unit * 1.4;
             const r  = unit * 0.35;
             ctx.beginPath();
@@ -815,18 +815,20 @@ export class Draw {
                 const ahead = gameState.debugPinkyAhead;
                 if (ahead) {
                     const ap = tc(ahead.x, ahead.y);
-                    const pm = gameState.pacman;
-                    ctx.save();
-                    ctx.globalAlpha = 0.5;
-                    ctx.strokeStyle = ghost.color;
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(pm.x, pm.y);
-                    ctx.lineTo(ap.x, ap.y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                    ctx.restore();
+                    const pm = gameState.players[0]?.actor;
+                    if (pm) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.5;
+                        ctx.strokeStyle = ghost.color;
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(pm.x, pm.y);
+                        ctx.lineTo(ap.x, ap.y);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.restore();
+                    }
                 }
                 Draw.debugArrow(ctx, ghost.x, ghost.y, tp.x, tp.y, ghost.color);
             } else {
