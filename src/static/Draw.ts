@@ -119,7 +119,7 @@ export class Draw {
         }
 
         // Phase 2 (0.62 → 0.87): small pop within Pac-Man's radius; 0.87→1.0 is silent delay
-        const POP_END = 0.87;
+        const POP_END = 0.75;
         if (p >= POP_END) return;
         const confettiP = (p - OPEN_END) / (POP_END - OPEN_END); // 0 → 1
         const alpha = 1 - confettiP;
