@@ -118,20 +118,21 @@ export class Draw {
             return;
         }
 
-        // Phase 2 (0.62 → 0.87): small pop within Pac-Man's radius; 0.87→1.0 is silent delay
+        // Phase 2 (0.62 → 0.87): pop burst; 0.87→1.0 is silent delay
         const POP_END = 0.75;
         if (p >= POP_END) return;
         const confettiP = (p - OPEN_END) / (POP_END - OPEN_END); // 0 → 1
         const alpha = 1 - confettiP;
-        const NUM_PARTICLES = 8;
+        const NUM_PARTICLES = 12;
+        const colors = ['#ffe000', '#ff8800', '#ff4444', '#ffffff'];
         for (let i = 0; i < NUM_PARTICLES; i++) {
             const angle = (i / NUM_PARTICLES) * Math.PI * 2;
-            const speed = (0.4 + (i % 2) * 0.2) * size; // stays within ~Pac-Man radius
+            const speed = (0.6 + (i % 3) * 0.25) * size;
             const px    = x + Math.cos(angle) * speed * confettiP;
             const py    = y + Math.sin(angle) * speed * confettiP;
-            const pSize = size * (0.10 + (i % 3) * 0.04) * (1 - confettiP * 0.4);
+            const pSize = size * (0.22 + (i % 3) * 0.07) * (1 - confettiP * 0.4);
             ctx.globalAlpha = alpha;
-            ctx.fillStyle = i % 2 === 0 ? '#ffe000' : '#ffaa00';
+            ctx.fillStyle = colors[i % colors.length];
             ctx.beginPath();
             ctx.arc(px, py, pSize, 0, Math.PI * 2);
             ctx.fill();
