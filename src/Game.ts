@@ -626,9 +626,7 @@ function triggerGameOver(): void {
     gameState.frozen = true;
     Time.addTimer(1.5, () => {
         if (Stats.qualifiesForTopTen(Stats.currentScore)) {
-            showInitialsEntry(() => {
-                Time.addTimer(1.5, () => { returningToMenu = true; });
-            });
+            showInitialsEntry(() => { returningToMenu = true; });
         } else {
             Time.addTimer(2.0, () => { returningToMenu = true; });
         }
@@ -649,7 +647,7 @@ function loseLife(player: PlayerState): void {
 
         // Each death costs one shared life immediately
         gameState.sharedLives--;
-        if (gameState.sharedLives <= 0) {
+        if (gameState.sharedLives < 0) {
             triggerGameOver();
         } else if (gameState.players.some(p => p.active)) {
             // Other players still alive — dead player sits out until next level
@@ -840,7 +838,7 @@ function update(): void {
 function start(slots: ConfirmedSlot[]): void {
     // Full game state reset for a fresh play
     Stats.reset();
-    gameState.sharedLives = 3;
+    gameState.sharedLives = 2;
     gameState.level = 1;
     gameState.scatterChaseIndex = 0;
     gameState.scatterChaseElapsed = 0;
