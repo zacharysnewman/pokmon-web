@@ -269,7 +269,7 @@ export class Draw {
     static ghost(obj: IGameObject): void {
         const { color, x, y, scale, ghostMode } = obj;
 
-        if (ghostMode === 'eyes') {
+        if (ghostMode === 'eyes' || ghostMode === 'entering') {
             Draw.drawGhostEyes(color, x, y, scale, obj.moveDir);
             return;
         }

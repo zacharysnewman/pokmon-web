@@ -23,9 +23,10 @@ export class Move {
 
     static blinky(): void {
         if (gameState.frozen) return;
-        if (gameState.players.some(p => p.frozen) && gameState.blinky.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && gameState.blinky.ghostMode !== 'eyes' && gameState.blinky.ghostMode !== 'entering') return;
         const g = gameState.blinky;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
+        if (g.ghostMode === 'entering') { Move.ghostEnter(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
     }
@@ -33,8 +34,9 @@ export class Move {
     static inky(): void {
         if (gameState.frozen) return;
         const g = gameState.inky;
-        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes' && g.ghostMode !== 'entering') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
+        if (g.ghostMode === 'entering') { Move.ghostEnter(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
     }
@@ -42,8 +44,9 @@ export class Move {
     static pinky(): void {
         if (gameState.frozen) return;
         const g = gameState.pinky;
-        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes' && g.ghostMode !== 'entering') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
+        if (g.ghostMode === 'entering') { Move.ghostEnter(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
     }
@@ -51,8 +54,9 @@ export class Move {
     static clyde(): void {
         if (gameState.frozen) return;
         const g = gameState.clyde;
-        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes') return;
+        if (gameState.players.some(p => p.frozen) && g.ghostMode !== 'eyes' && g.ghostMode !== 'entering') return;
         if (g.ghostMode === 'house') { Move.ghostBounce(g); return; }
+        if (g.ghostMode === 'entering') { Move.ghostEnter(g); return; }
         if (g.ghostMode === 'exiting') { Move.ghostExit(g); return; }
         Move.moveObject(g);
     }
@@ -70,6 +74,50 @@ export class Move {
             ghost.y += step;
             if (ghost.y >= bounceBottomY) { ghost.y = bounceBottomY; ghost.moveDir = 'up'; }
         }
+    }
+
+    // Navigate returning eyes from the entrance (col 13, row 14) down to the ghost's spawn position,
+    // then hand off to exiting. Mirrors ghostExit in reverse.
+    static ghostEnter(ghost: IGameObject): void {
+        const step = ghost.moveSpeed * Time.scaledDeltaTime * Draw.normalizedUnit();
+        const enterX = 13 * unit + unit / 2; // center column — always enter straight down
+        const centerY = 17 * unit + unit / 2; // row 17 — house interior center row
+
+        // Per-color spawn X (matches START positions in Game.ts)
+        const spawnXByColor: Record<string, number> = {
+            'red':     13.5 * unit + unit / 2, // Blinky → center (lives outside normally)
+            'hotpink': 13.5 * unit + unit / 2, // Pinky  → center
+            'cyan':    12   * unit + unit / 2, // Inky   → left
+            'orange':  15   * unit + unit / 2, // Clyde  → right
+        };
+        // Fallback to Pinky/Blinky tile if color unrecognised
+        const spawnX = spawnXByColor[ghost.color] ?? enterX;
+
+        // Step 1: move straight down to row 17 (bypasses the door tile via direct Y movement)
+        if (ghost.y < centerY - 0.5) {
+            ghost.y = Math.min(ghost.y + step, centerY);
+            ghost.moveDir = 'down';
+            return;
+        }
+        ghost.y = centerY;
+
+        // Step 2: move horizontally to this ghost's spawn column
+        if (Math.abs(ghost.x - spawnX) > 0.5) {
+            if (ghost.x > spawnX) {
+                ghost.x = Math.max(ghost.x - step, spawnX);
+                ghost.moveDir = 'left';
+            } else {
+                ghost.x = Math.min(ghost.x + step, spawnX);
+                ghost.moveDir = 'right';
+            }
+            return;
+        }
+
+        // Arrived at spawn — set normal maze speed and begin exiting
+        ghost.x = spawnX;
+        const lvl = gameState.level;
+        ghost.moveSpeed = lvl === 1 ? 0.75 : lvl <= 4 ? 0.85 : 0.95;
+        ghost.ghostMode = 'exiting';
     }
 
     // Navigate ghost from inside the house to the exit tile (col 13, row 14)

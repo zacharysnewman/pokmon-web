@@ -180,8 +180,8 @@ function updateGhostTunnelSpeeds(): void {
     if (gameState.frozen || gameState.gameOver) return;
     for (const ghost of gameState.ghosts) {
         // Modes managed outside this function
-        if (ghost.ghostMode === 'eyes' || ghost.ghostMode === 'house' ||
-            ghost.ghostMode === 'exiting') continue;
+        if (ghost.ghostMode === 'eyes' || ghost.ghostMode === 'entering' ||
+            ghost.ghostMode === 'house' || ghost.ghostMode === 'exiting') continue;
 
         if (isGhostInTunnel(ghost)) {
             ghost.moveSpeed = getGhostTunnelSpeed(gameState.level);
@@ -245,7 +245,8 @@ function resetScatterChaseTimer(): void {
     gameState.scatterChaseElapsed = 0;
     for (const ghost of gameState.ghosts) {
         if (ghost.ghostMode !== 'frightened' && ghost.ghostMode !== 'eyes' &&
-            ghost.ghostMode !== 'house' && ghost.ghostMode !== 'exiting') {
+            ghost.ghostMode !== 'entering' && ghost.ghostMode !== 'house' &&
+            ghost.ghostMode !== 'exiting') {
             ghost.ghostMode = 'scatter';
         }
     }
@@ -273,7 +274,7 @@ function updateScatterChaseMode(dt: number): void {
                 gameState.modeChangesInHouse[ghost.color] =
                     (gameState.modeChangesInHouse[ghost.color] ?? 0) + 1;
             } else if (ghost.ghostMode !== 'frightened' && ghost.ghostMode !== 'eyes' &&
-                       ghost.ghostMode !== 'exiting') {
+                       ghost.ghostMode !== 'entering' && ghost.ghostMode !== 'exiting') {
                 ghost.ghostMode = newMode;
                 reverseGhost(ghost);
             }
@@ -296,8 +297,8 @@ function activateFrightened(): void {
     if (duration <= 0) {
         // Zero duration: reverse ghosts but don't turn them blue
         for (const ghost of gameState.ghosts) {
-            if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
-                ghost.ghostMode !== 'exiting') {
+            if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'entering' &&
+                ghost.ghostMode !== 'house' && ghost.ghostMode !== 'exiting') {
                 reverseGhost(ghost);
             }
         }
@@ -307,8 +308,8 @@ function activateFrightened(): void {
     // Reset countdown (use game-time delta so pauses don't eat into it)
     gameState.frightenedRemaining = duration;
     for (const ghost of gameState.ghosts) {
-        if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
-            ghost.ghostMode !== 'exiting') {
+        if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'entering' &&
+            ghost.ghostMode !== 'house' && ghost.ghostMode !== 'exiting') {
             ghost.ghostMode = 'frightened';
             reverseGhost(ghost);
             ghost.moveSpeed = getGhostFrightSpeed(gameState.level);
@@ -459,13 +460,11 @@ function makeGhostTileCentered(getGhost: () => IGameObject): (_x: number, _y: nu
     return (_x: number, _y: number) => {
         const ghost = getGhost();
         // Skip AI for ghosts managed by the house system
-        if (ghost.ghostMode === 'house' || ghost.ghostMode === 'exiting') return;
-        // Eyes arrive at ghost house entrance — snap inside and begin exiting
+        if (ghost.ghostMode === 'house' || ghost.ghostMode === 'entering' || ghost.ghostMode === 'exiting') return;
+        // Eyes arrive at ghost house entrance — align to center column and enter the house
         if (ghost.ghostMode === 'eyes' && ghost.roundedX() === 13 && ghost.roundedY() === 14) {
-            ghost.x = 13 * unit + unit / 2; // exit column
-            ghost.y = 17 * unit + unit / 2; // center of house interior
-            ghost.moveSpeed = getGhostNormalSpeed(gameState.level);
-            ghost.ghostMode = 'exiting';
+            ghost.x = 13 * unit + unit / 2; // snap to center column so entry goes straight down
+            ghost.ghostMode = 'entering'; // keep SPEED_EYES — ghostEnter sets normal speed on exit
             return;
         }
         AI.ghostTileCenter(ghost);
@@ -679,8 +678,8 @@ function checkCollisions(): void {
             if (ghost.roundedX() === px && ghost.roundedY() === py) {
                 if (ghost.ghostMode === 'frightened') {
                     eatGhost(ghost, player);
-                } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
-                           ghost.ghostMode !== 'exiting') {
+                } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'entering' &&
+                           ghost.ghostMode !== 'house' && ghost.ghostMode !== 'exiting') {
                     loseLife(player);
                     break; // stop checking ghosts for this player; continue to next player
                 }
