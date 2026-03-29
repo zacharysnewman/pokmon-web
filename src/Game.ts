@@ -643,6 +643,8 @@ function loseLife(player: PlayerState): void {
     Sound.death();
 
     Time.addTimer(DEATH_ANIM_DURATION, () => {
+        // levelClear() resets dying to false — if it already fired, skip this death entirely
+        if (!player.dying) return;
         player.dying = false;
         player.active = false;
 
