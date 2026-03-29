@@ -581,6 +581,7 @@ function showInitialsEntry(onDone: () => void): void {
     const input = document.createElement('input');
     input.type = 'text';
     input.maxLength = 3;
+    input.placeholder = 'AAA';
     (input as HTMLInputElement & { autocomplete: string }).autocomplete = 'off';
     input.style.cssText = [
         'font-family:monospace;font-size:48px;font-weight:bold',
@@ -600,14 +601,15 @@ function showInitialsEntry(onDone: () => void): void {
 
     function submit(): void {
         const raw = input.value.replace(/[^A-Za-z]/g, '');
-        const initials = (raw || 'AAA').toUpperCase().padEnd(3, 'A').slice(0, 3);
+        if (raw.length === 0) return; // require at least one letter
+        const initials = raw.toUpperCase().padEnd(3, raw[raw.length - 1].toUpperCase()).slice(0, 3);
         Stats.saveScore(initials, Stats.currentScore);
         document.body.removeChild(overlay);
         onDone();
     }
 
     input.oninput = () => { input.value = input.value.replace(/[^A-Za-z]/g, '').toUpperCase(); };
-    input.onkeydown = (e) => { if (e.key === 'Enter' && input.value.length > 0) submit(); };
+    input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
     btn.onclick = submit;
 
     overlay.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
