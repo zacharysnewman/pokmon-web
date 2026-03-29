@@ -585,11 +585,17 @@ function showInitialsEntry(onDone: () => void): void {
     (input as HTMLInputElement & { autocomplete: string }).autocomplete = 'off';
     input.setAttribute('autocorrect', 'off');
     input.setAttribute('autocapitalize', 'characters');
-    input.style.cssText = 'position:fixed;opacity:0.01;width:1px;height:1px;top:50%;left:50%';
+    // font-size ≥16px prevents iOS Safari from zooming when focused
+    input.style.cssText = [
+        'position:absolute;inset:0;width:100%;height:100%',
+        'opacity:0.01;font-size:16px;cursor:text',
+        'background:transparent;border:none;outline:none;color:transparent;caret-color:transparent',
+    ].join(';');
 
     // Three slot divs — fixed width for monospaced look regardless of font
-    const slotsRow = document.createElement('div');
-    slotsRow.style.cssText = 'display:flex;gap:20px;cursor:text';
+    // Wrap in a relative container so the input can be overlaid for direct iOS taps
+    const slotsWrap = document.createElement('div');
+    slotsWrap.style.cssText = 'position:relative;display:flex;gap:20px;cursor:text;padding:8px 16px';
 
     const slotEls: HTMLDivElement[] = [];
     for (let i = 0; i < 3; i++) {
@@ -602,9 +608,11 @@ function showInitialsEntry(onDone: () => void): void {
             'color:#444',
         ].join(';');
         slot.textContent = '_';
-        slotsRow.appendChild(slot);
+        slotsWrap.appendChild(slot);
         slotEls.push(slot);
     }
+    // Overlay input on top of slots — direct tap = iOS keyboard, no programmatic focus needed
+    slotsWrap.appendChild(input);
 
     function updateSlots(): void {
         const val = input.value;
@@ -639,15 +647,15 @@ function showInitialsEntry(onDone: () => void): void {
         updateSlots();
     };
     input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
-    btn.onclick = submit;
-    slotsRow.addEventListener('click', () => input.focus());
+    btn.onclick = (e) => { e.stopPropagation(); submit(); };
 
     overlay.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     overlay.addEventListener('touchend',   (e) => e.stopPropagation(), { passive: true });
     overlay.addEventListener('click',      (e) => e.stopPropagation());
 
-    overlay.append(title, scoreEl, input, slotsRow, btn);
+    overlay.append(title, scoreEl, slotsWrap, btn);
     document.body.appendChild(overlay);
+    // Best-effort autofocus for non-iOS browsers; iOS requires a direct tap on the input
     setTimeout(() => input.focus(), 80);
 }
 
@@ -1198,16 +1206,19 @@ window.onload = function () {
             #debug-panel {
                 position: fixed; top: 12px; right: 12px;
                 background: rgba(0,0,0,0.92); color: #eee;
-                padding: 18px 24px; border: 2px solid #666;
+                padding: 12px 24px 18px; border: 2px solid #666;
                 font-family: monospace; font-size: 22px;
                 border-radius: 10px; z-index: 9999;
                 user-select: none; min-width: 280px;
                 touch-action: none;
             }
             #debug-panel h3 {
-                margin: 0 0 14px; color: yellow;
+                margin: 0; color: yellow;
                 font-size: 22px; letter-spacing: 1px;
+                display: flex; align-items: center; justify-content: space-between;
+                cursor: pointer; padding: 6px 0;
             }
+            #dbg-toggle { font-size: 18px; color: #aaa; }
             #debug-panel label {
                 display: flex; align-items: center;
                 gap: 12px; cursor: pointer; margin: 10px 0;
@@ -1225,15 +1236,20 @@ window.onload = function () {
                 padding: 8px 0; cursor: pointer; min-height: 44px;
             }
             #debug-panel button:hover { background: #444; }
+            #dbg-reset-scores { color: #ff8888; border-color: #884444; }
+            #dbg-reset-scores:hover { background: #441111; }
             </style>
-            <h3>⚙ DEBUG</h3>
-            <label><input type="checkbox" id="dbg-targets"> Target tiles</label>
-            <label><input type="checkbox" id="dbg-viz"> Targeting viz</label>
-            <label><input type="checkbox" id="dbg-modes"> Ghost modes</label>
-            <label><input type="checkbox" id="dbg-redzones"> Red zones</label>
-            <label><input type="checkbox" id="dbg-ghostpaths"> Ghost paths</label>
-            <label><input type="checkbox" id="dbg-tilepicker"> Tile picker</label>
-            <button id="dbg-pause">⏸ Pause</button>
+            <h3 id="dbg-header">⚙ DEBUG <span id="dbg-toggle">▲</span></h3>
+            <div id="dbg-content">
+                <label><input type="checkbox" id="dbg-targets"> Target tiles</label>
+                <label><input type="checkbox" id="dbg-viz"> Targeting viz</label>
+                <label><input type="checkbox" id="dbg-modes"> Ghost modes</label>
+                <label><input type="checkbox" id="dbg-redzones"> Red zones</label>
+                <label><input type="checkbox" id="dbg-ghostpaths"> Ghost paths</label>
+                <label><input type="checkbox" id="dbg-tilepicker"> Tile picker</label>
+                <button id="dbg-pause">⏸ Pause</button>
+                <button id="dbg-reset-scores">🗑 Reset High Scores</button>
+            </div>
         `;
         document.body.appendChild(panel);
 
@@ -1265,6 +1281,25 @@ window.onload = function () {
         pauseBtn.onclick = () => {
             gameState.frozen = !gameState.frozen;
             pauseBtn.textContent = gameState.frozen ? '▶ Resume' : '⏸ Pause';
+        };
+
+        const resetScoresBtn = document.getElementById('dbg-reset-scores') as HTMLButtonElement;
+        resetScoresBtn.onclick = () => {
+            if (confirm('Reset all high scores?')) {
+                Stats.resetHighScores();
+                resetScoresBtn.textContent = '✓ Scores Reset';
+                setTimeout(() => { resetScoresBtn.textContent = '🗑 Reset High Scores'; }, 2000);
+            }
+        };
+
+        // Collapsible panel
+        const content = document.getElementById('dbg-content') as HTMLDivElement;
+        const toggle  = document.getElementById('dbg-toggle')  as HTMLSpanElement;
+        let collapsed = false;
+        (document.getElementById('dbg-header') as HTMLElement).onclick = () => {
+            collapsed = !collapsed;
+            content.style.display = collapsed ? 'none' : '';
+            toggle.textContent = collapsed ? '▼' : '▲';
         };
 
         // Canvas tile picker — converts click/tap position to tile coordinates

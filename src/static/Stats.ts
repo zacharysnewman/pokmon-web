@@ -70,6 +70,11 @@ export class Stats {
         }
     }
 
+    static resetHighScores(): void {
+        localStorage.removeItem(LS_KEY);
+        Stats.highScore = Stats.loadBestScore();
+    }
+
     static reset(): void {
         Stats.currentScore = 0;
         Stats.extraLifeAwardedThisGame = false;
