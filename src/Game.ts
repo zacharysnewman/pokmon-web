@@ -677,6 +677,16 @@ function showInitialsEntry(onDone: () => void): void {
 
 const DEATH_ANIM_DURATION = 2.0;
 
+// Stagger P3 and P4 by 0.5 s after each READY! so starts feel less chaotic
+function staggerLateStarters(): void {
+    for (const p of gameState.players) {
+        if (p.id === 3 || p.id === 4) {
+            p.frozen = true;
+            Time.addTimer(0.5, () => { p.frozen = false; });
+        }
+    }
+}
+
 function triggerGameOver(): void {
     gameState.gameOver = true;
     gameState.frozen = true;
@@ -720,6 +730,7 @@ function loseLife(player: PlayerState): void {
             Time.addTimer(1.5, () => {
                 gameState.frozen = false;
                 gameState.showReady = false;
+                staggerLateStarters();
             });
         }
     });
@@ -896,6 +907,12 @@ function update(): void {
 }
 
 function start(slots: ConfirmedSlot[]): void {
+    // Inject debug phantom players (noop GamepadPlayerInput with nonexistent index)
+    const maxId = slots.reduce((m, s) => Math.max(m, s.id), 0);
+    for (let i = 0; i < debugExtraPlayers && slots.length < 4; i++) {
+        slots = [...slots, { id: maxId + i + 1, input: new GamepadPlayerInput(99) as PlayerInput }];
+    }
+
     // Full game state reset for a fresh play
     Stats.reset();
     gameState.sharedLives = 2;
@@ -930,6 +947,7 @@ function start(slots: ConfirmedSlot[]): void {
     Time.addTimer(2.0, () => {
         gameState.frozen = false;
         gameState.showReady = false;
+        staggerLateStarters();
     });
     update();
 }
@@ -938,6 +956,7 @@ function start(slots: ConfirmedSlot[]): void {
 
 let gameStarted = false;
 let returningToMenu = false;
+let debugExtraPlayers = 0; // injected phantom players for testing multiplayer
 let audioUnlocked = false;   // true after first user gesture (AudioContext created)
 let menuMusicPlaying = false; // true while menu music is actively playing
 
@@ -1283,6 +1302,11 @@ window.onload = function () {
                 <label><input type="checkbox" id="dbg-redzones"> Red zones</label>
                 <label><input type="checkbox" id="dbg-ghostpaths"> Ghost paths</label>
                 <label><input type="checkbox" id="dbg-tilepicker"> Tile picker</label>
+                <label style="flex-direction:column;align-items:flex-start;gap:4px">
+                    <span id="dbg-extra-players-label">Extra players: 0</span>
+                    <input type="range" id="dbg-extra-players" min="0" max="3" value="0"
+                        style="width:100%;accent-color:yellow;cursor:pointer">
+                </label>
                 <button id="dbg-pause">⏸ Pause</button>
                 <button id="dbg-initials">✏ Initials Screen</button>
                 <button id="dbg-reset-scores">🗑 Reset High Scores</button>
@@ -1316,6 +1340,13 @@ window.onload = function () {
             gameState.debugTilePicker = (e.target as HTMLInputElement).checked;
             if (!gameState.debugTilePicker) gameState.debugSelectedTile = null;
         };
+        const extraPlayersSlider = document.getElementById('dbg-extra-players') as HTMLInputElement;
+        const extraPlayersLabel  = document.getElementById('dbg-extra-players-label') as HTMLSpanElement;
+        extraPlayersSlider.oninput = () => {
+            debugExtraPlayers = parseInt(extraPlayersSlider.value);
+            extraPlayersLabel.textContent = `Extra players: ${debugExtraPlayers}`;
+        };
+
         const pauseBtn = document.getElementById('dbg-pause') as HTMLButtonElement;
         pauseBtn.onclick = () => {
             gameState.frozen = !gameState.frozen;
