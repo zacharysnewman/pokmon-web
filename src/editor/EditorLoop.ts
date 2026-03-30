@@ -177,12 +177,12 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     ctx.restore();
 
     // Spawn markers
-    drawSpawnMarker(ctx, lv.playerStart,         'yellow',   'P');
-    drawSpawnMarker(ctx, lv.enemyStarts.blinky,  '#FF3333',  'B');
-    drawSpawnMarker(ctx, lv.enemyStarts.inky,    '#00FFFF',  'I');
-    drawSpawnMarker(ctx, lv.enemyStarts.pinky,   '#FFB8FF',  'Pi');
-    drawSpawnMarker(ctx, lv.enemyStarts.clyde,   '#FFB852',  'C');
-    drawSpawnMarker(ctx, lv.fruitSpawn,          '#FF6600',  'F');
+    drawSpawnMarker(ctx, lv.playerStart,         'yellow',  'P');
+    drawSpawnMarker(ctx, lv.enemyStarts.blinky,  '#FF3333', 'R');
+    drawSpawnMarker(ctx, lv.enemyStarts.inky,    '#00FFFF', 'C');
+    drawSpawnMarker(ctx, lv.enemyStarts.pinky,   '#FFB8FF', 'H');
+    drawSpawnMarker(ctx, lv.enemyStarts.clyde,   '#FFB852', 'O');
+    drawSpawnMarker(ctx, lv.fruitSpawn,          '#FF6600', 'F');
 
     // Grid lines
     if (state.showGrid) {
@@ -241,13 +241,13 @@ const PALETTE: Array<{ value: TileValue; label: string; bg: string }> = [
 ];
 
 const SPAWN_BTNS: Array<{ tool: EditorTool; label: string; color: string }> = [
-    { tool: 'player_spawn',   label: 'P Player', color: 'yellow'   },
-    { tool: 'enemy_blinky',   label: 'B Blinky', color: '#FF3333'  },
-    { tool: 'enemy_inky',     label: 'I Inky',   color: '#00FFFF'  },
-    { tool: 'enemy_pinky',    label: 'Pi Pinky', color: '#FFB8FF'  },
-    { tool: 'enemy_clyde',    label: 'C Clyde',  color: '#FFB852'  },
-    { tool: 'fruit_spawn',    label: 'F Fruit',  color: '#FF6600'  },
-    { tool: 'enemy_house_door', label: '🚪 Door', color: 'lightpink' },
+    { tool: 'player_spawn',     label: 'P Player', color: 'yellow'    },
+    { tool: 'enemy_blinky',     label: 'R Red',    color: '#FF3333'   },
+    { tool: 'enemy_inky',       label: 'C Cyan',   color: '#00FFFF'   },
+    { tool: 'enemy_pinky',      label: 'H Pink',   color: '#FFB8FF'   },
+    { tool: 'enemy_clyde',      label: 'O Orange', color: '#FFB852'   },
+    { tool: 'fruit_spawn',      label: 'F Fruit',  color: '#FF6600'   },
+    { tool: 'enemy_house_door', label: '🚪 Door',  color: 'lightpink' },
 ];
 
 const SPECIAL_BTNS: Array<{ tool: EditorTool; label: string }> = [
