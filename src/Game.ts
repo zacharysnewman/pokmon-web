@@ -1137,21 +1137,22 @@ function playerSelectLoop(): void {
     function selectFrame(): void {
         if (!selectRunning) return;
 
-        const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-        for (let gi = 0; gi < gamepads.length; gi++) {
-            const gp = gamepads[gi];
-            const prev = prevBtns[gi] ?? [];
-            if (!gp) { prevBtns[gi] = []; continue; }
-            const aPressed = gp.buttons[0]?.pressed  ?? false;
-            const dLeft    = gp.buttons[14]?.pressed ?? false;
-            const dRight   = gp.buttons[15]?.pressed ?? false;
-            const dUp      = gp.buttons[12]?.pressed ?? false;
-            const dDown    = gp.buttons[13]?.pressed ?? false;
-            if (aPressed  && !prev[0])  confirmAndStart();
-            if ((dLeft && !prev[14]) || (dRight && !prev[15])) toggleMode();
-            if (dUp   && !prev[12]) adjustCount(-1);
-            if (dDown && !prev[13]) adjustCount(+1);
-            prevBtns[gi] = Array.from(gp.buttons, b => b.pressed);
+        // Only gamepad 0 (P1) can navigate the player select screen
+        const p1gp = (navigator.getGamepads ? navigator.getGamepads() : [])[0] ?? null;
+        const prev0 = prevBtns[0] ?? [];
+        if (p1gp) {
+            const aPressed = p1gp.buttons[0]?.pressed  ?? false;
+            const dLeft    = p1gp.buttons[14]?.pressed ?? false;
+            const dRight   = p1gp.buttons[15]?.pressed ?? false;
+            const dUp      = p1gp.buttons[12]?.pressed ?? false;
+            const dDown    = p1gp.buttons[13]?.pressed ?? false;
+            if (aPressed  && !prev0[0])  confirmAndStart();
+            if ((dLeft && !prev0[14]) || (dRight && !prev0[15])) toggleMode();
+            if (dUp   && !prev0[12]) adjustCount(-1);
+            if (dDown && !prev0[13]) adjustCount(+1);
+            prevBtns[0] = Array.from(p1gp.buttons, b => b.pressed);
+        } else {
+            prevBtns[0] = [];
         }
 
         Draw.playerSelectScreen(playerCount, controllerMode, connectedCount());
@@ -1194,11 +1195,10 @@ function playerSelectLoop(): void {
 function startScreenLoop(): void {
     if (gameStarted) return;
 
-    // Poll gamepads for A button (rising edge only)
-    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-    let aDown = false;
-    for (const gp of gamepads) { if (gp?.buttons[0]?.pressed) { aDown = true; break; } }
-    if (aDown && !startScreenPrevA) handleMenuInteraction(true); // gamepad triggered → controllers present
+    // Poll only gamepad 0 (P1) for A button — other controllers don't advance the menu
+    const p1Gamepad = (navigator.getGamepads ? navigator.getGamepads() : [])[0] ?? null;
+    const aDown = p1Gamepad?.buttons[0]?.pressed ?? false;
+    if (aDown && !startScreenPrevA) handleMenuInteraction(true);
     startScreenPrevA = aDown;
 
     // Auto-play menu music after returning from a game (audio already unlocked)
