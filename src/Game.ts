@@ -557,6 +557,7 @@ function levelClear(): void {
         Time.addTimer(1.5, () => {
             gameState.frozen = false;
             gameState.showReady = false;
+            staggerLateStarters();
         });
     });
 }
