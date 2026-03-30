@@ -1298,8 +1298,8 @@ window.onload = function () {
                 padding: 12px 0; cursor: pointer; min-height: 66px;
             }
             #debug-panel button:hover { background: #444; }
-            #dbg-reset-scores { color: #ff8888; border-color: #884444; }
-            #dbg-reset-scores:hover { background: #441111; }
+            #dbg-reset-scores, #dbg-quit { color: #ff8888; border-color: #884444; }
+            #dbg-reset-scores:hover, #dbg-quit:hover { background: #441111; }
             #dbg-error-log {
                 margin-top: 18px; max-height: 240px; overflow-y: auto;
                 background: #1a0000; border: 1px solid #663333;
@@ -1331,7 +1331,9 @@ window.onload = function () {
                         style="width:100%;accent-color:yellow;cursor:pointer">
                 </label>
                 <button id="dbg-pause">⏸ Pause</button>
+                <button id="dbg-player-select">◀ Player Select</button>
                 <button id="dbg-initials">✏ Initials Screen</button>
+                <button id="dbg-quit">💀 Quit Game</button>
                 <button id="dbg-reset-scores">🗑 Reset High Scores</button>
                 <div id="dbg-error-log-header">⚠ Errors <span style="display:flex;gap:6px"><button id="dbg-copy-errors">Copy</button><button id="dbg-clear-errors">Clear</button></span></div>
                 <div id="dbg-error-log"></div>
@@ -1376,9 +1378,18 @@ window.onload = function () {
             pauseBtn.textContent = gameState.frozen ? '▶ Resume' : '⏸ Pause';
         };
 
+        (document.getElementById('dbg-player-select') as HTMLButtonElement).onclick = () => {
+            returningToMenu = true;
+        };
+
         (document.getElementById('dbg-initials') as HTMLButtonElement).onclick = () => {
             if (Stats.currentScore === 0) Stats.currentScore = 12345; // mock score for preview
             showInitialsEntry(() => { Stats.currentScore = 0; });
+        };
+
+        (document.getElementById('dbg-quit') as HTMLButtonElement).onclick = () => {
+            gameState.sharedLives = 0;
+            for (const p of gameState.players) loseLife(p);
         };
 
         const resetScoresBtn = document.getElementById('dbg-reset-scores') as HTMLButtonElement;
