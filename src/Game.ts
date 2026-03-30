@@ -1268,53 +1268,53 @@ window.onload = function () {
             #debug-panel {
                 position: fixed; top: 12px; right: 12px;
                 background: rgba(0,0,0,0.92); color: #eee;
-                padding: 12px 24px 18px; border: 2px solid #666;
-                font-family: monospace; font-size: 22px;
+                padding: 18px 24px 27px; border: 2px solid #666;
+                font-family: monospace; font-size: 33px;
                 border-radius: 10px; z-index: 9999;
                 user-select: none; min-width: 280px;
                 touch-action: none;
             }
             #debug-panel h3 {
                 margin: 0; color: yellow;
-                font-size: 22px; letter-spacing: 1px;
+                font-size: 33px; letter-spacing: 1px;
                 display: flex; align-items: center; justify-content: space-between;
-                cursor: pointer; padding: 6px 0;
+                cursor: pointer; padding: 9px 0;
             }
-            #dbg-toggle { font-size: 18px; color: #aaa; }
+            #dbg-toggle { font-size: 27px; color: #aaa; }
             #debug-panel label {
                 display: flex; align-items: center;
-                gap: 12px; cursor: pointer; margin: 10px 0;
-                min-height: 36px;
+                gap: 18px; cursor: pointer; margin: 15px 0;
+                min-height: 54px;
             }
             #debug-panel input[type=checkbox] {
-                cursor: pointer; width: 22px; height: 22px;
+                cursor: pointer; width: 33px; height: 33px;
                 flex-shrink: 0;
             }
             #debug-panel button {
-                margin-top: 14px; width: 100%;
+                margin-top: 21px; width: 100%;
                 background: #333; color: #eee;
                 border: 2px solid #666; border-radius: 6px;
-                font-family: monospace; font-size: 22px;
-                padding: 8px 0; cursor: pointer; min-height: 44px;
+                font-family: monospace; font-size: 33px;
+                padding: 12px 0; cursor: pointer; min-height: 66px;
             }
             #debug-panel button:hover { background: #444; }
             #dbg-reset-scores { color: #ff8888; border-color: #884444; }
             #dbg-reset-scores:hover { background: #441111; }
             #dbg-error-log {
-                margin-top: 12px; max-height: 160px; overflow-y: auto;
+                margin-top: 18px; max-height: 240px; overflow-y: auto;
                 background: #1a0000; border: 1px solid #663333;
-                border-radius: 4px; padding: 6px 8px;
-                font-size: 14px; color: #ff8888; line-height: 1.4;
+                border-radius: 4px; padding: 9px 8px;
+                font-size: 21px; color: #ff8888; line-height: 1.4;
                 word-break: break-all; display: none;
             }
             #dbg-error-log-header {
                 display: flex; align-items: center; justify-content: space-between;
-                margin-top: 12px; font-size: 16px; color: #ff8888; display: none;
+                margin-top: 18px; font-size: 24px; color: #ff8888; display: none;
             }
             #dbg-clear-errors, #dbg-copy-errors {
-                font-size: 13px; color: #aaa; background: none;
+                font-size: 20px; color: #aaa; background: none;
                 border: 1px solid #555; border-radius: 3px;
-                padding: 2px 6px; cursor: pointer; margin-top: 0; width: auto; min-height: 0;
+                padding: 3px 6px; cursor: pointer; margin-top: 0; width: auto; min-height: 0;
             }
             </style>
             <h3 id="dbg-header">⚙ DEBUG <span id="dbg-toggle">▲</span></h3>
