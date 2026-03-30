@@ -970,6 +970,7 @@ let returningToPlayerSelect = false;
 let debugExtraPlayers = 0; // injected phantom players for testing multiplayer
 let audioUnlocked = false;   // true after first user gesture (AudioContext created)
 let menuMusicPlaying = false; // true while menu music is actively playing
+let controllerActive = false; // true once any gamepad interaction is detected; never resets
 
 let menuAnimTime = 0;
 let menuAnimLastTs = 0;
@@ -1051,10 +1052,11 @@ function drawMenuChase(t: number): void {
 //   Phase 2 (second gesture): go to player select screen
 // After the first play-session, returning to menu auto-plays music, so
 // subsequent sessions only need one tap/click to reach player select.
-// hasGamepad: caller passes true when it already knows a gamepad triggered this
-// (avoids re-checking connectedIndices() which can be stale right after returning to menu)
+// hasGamepad: caller passes true when startScreenLoop confirmed a gamepad triggered this.
+// Sets controllerActive so subsequent calls (e.g. from touchend) see the flag too.
 function handleMenuInteraction(hasGamepad = false): void {
     if (gameStarted) return;
+    if (hasGamepad) controllerActive = true;
     if (!audioUnlocked) {
         // First ever gesture — unlock audio and start menu music
         Sound.init();
@@ -1063,9 +1065,10 @@ function handleMenuInteraction(hasGamepad = false): void {
         menuMusicPlaying = true;
         return;
     }
-    // Audio already unlocked — go to player select if controllers are present, else start solo
+    // Audio already unlocked — go to player select if a controller was ever active,
+    // otherwise start solo directly (keeps single-player flow intact).
     gameStarted = true;
-    if (hasGamepad || GamepadPlayerInput.connectedIndices().length > 0) {
+    if (controllerActive) {
         playerSelectLoop();
     } else {
         start([{ id: 1, input: new CompositePlayerInput([new KeyboardPlayerInput(), new TouchPlayerInput()]) as PlayerInput }]);
@@ -1494,6 +1497,9 @@ window.onload = function () {
             pickTile(t.clientX, t.clientY);
         }, { passive: true });
     }
+
+    // Mark controllerActive as soon as any gamepad connects (covers mid-session plug-in)
+    window.addEventListener('gamepadconnected', () => { controllerActive = true; });
 
     document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
     document.addEventListener('click', () => handleMenuInteraction());
