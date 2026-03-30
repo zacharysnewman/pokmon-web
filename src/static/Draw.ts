@@ -165,7 +165,7 @@ export class Draw {
         if (id === 2) {
             // Backpack Man — brown rounded rect on the back
             const pw = size * 0.45;
-            const ph = size * 0.55;
+            const ph = size * 1.1;
             const bx = x + backDx * (size * 0.85) - pw / 2;
             const by = y + backDy * (size * 0.85) - ph / 2;
             ctx.fillStyle = '#8B5E3C';
@@ -181,8 +181,8 @@ export class Draw {
             else if (moveDir === 'down') { topDx = -1; topDy = 0; }
             const spreadDx = -topDy;
             const spreadDy =  topDx;
-            const bowHalfSpread = size * 0.3;
-            const bowDepth      = size * 0.22;
+            const bowHalfSpread = size * 0.6;
+            const bowDepth      = size * 0.44;
             const bcx = x + topDx * size * 1.15;
             const bcy = y + topDy * size * 1.15;
             ctx.fillStyle = '#b44fff';
@@ -206,7 +206,7 @@ export class Draw {
             ctx.fill();
             // Center knot
             ctx.beginPath();
-            ctx.arc(bcx, bcy, size * 0.09, 0, Math.PI * 2);
+            ctx.arc(bcx, bcy, size * 0.18, 0, Math.PI * 2);
             ctx.fill();
         } else if (id === 4) {
             // Tic Tac Man — white pill on the back, perpendicular to travel
