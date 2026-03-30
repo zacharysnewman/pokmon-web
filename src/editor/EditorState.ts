@@ -30,19 +30,19 @@ export function deepCopyLevel(level: LevelData): LevelData {
         tiles: level.tiles.map(row => [...row] as TileValue[]),
         playerStart:    { ...level.playerStart },
         enemyStarts: {
-            red:     { ...level.enemyStarts.red },
-            cyan:    { ...level.enemyStarts.cyan },
-            hotpink: { ...level.enemyStarts.hotpink },
-            orange:  { ...level.enemyStarts.orange },
+            redEnemy:     { ...level.enemyStarts.redEnemy },
+            cyanEnemy:    { ...level.enemyStarts.cyanEnemy },
+            hotpinkEnemy: { ...level.enemyStarts.hotpinkEnemy },
+            orangeEnemy:  { ...level.enemyStarts.orangeEnemy },
         },
         fruitSpawn:     { ...level.fruitSpawn },
         enemyHouseDoor: { ...level.enemyHouseDoor },
         redZoneTiles:   level.redZoneTiles.map(t => ({ ...t })),
         scatterTargets: {
-            red:     { ...level.scatterTargets.red },
-            cyan:    { ...level.scatterTargets.cyan },
-            hotpink: { ...level.scatterTargets.hotpink },
-            orange:  { ...level.scatterTargets.orange },
+            redEnemy:     { ...level.scatterTargets.redEnemy },
+            cyanEnemy:    { ...level.scatterTargets.cyanEnemy },
+            hotpinkEnemy: { ...level.scatterTargets.hotpinkEnemy },
+            orangeEnemy:  { ...level.scatterTargets.orangeEnemy },
         },
     };
 }

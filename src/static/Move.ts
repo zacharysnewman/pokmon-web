@@ -21,19 +21,19 @@ export class Move {
         }
     }
 
-    static red(): void {
+    static redEnemy(): void {
         if (gameState.frozen) return;
-        if (gameState.players.some(p => p.frozen) && gameState.red.enemyMode !== 'eyes' && gameState.red.enemyMode !== 'entering') return;
-        const g = gameState.red;
+        if (gameState.players.some(p => p.frozen) && gameState.redEnemy.enemyMode !== 'eyes' && gameState.redEnemy.enemyMode !== 'entering') return;
+        const g = gameState.redEnemy;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
         if (g.enemyMode === 'exiting') { Move.enemyExit(g); return; }
         Move.moveObject(g);
     }
 
-    static cyan(): void {
+    static cyanEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.cyan;
+        const g = gameState.cyanEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
@@ -41,9 +41,9 @@ export class Move {
         Move.moveObject(g);
     }
 
-    static hotpink(): void {
+    static hotpinkEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.hotpink;
+        const g = gameState.hotpinkEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
@@ -51,9 +51,9 @@ export class Move {
         Move.moveObject(g);
     }
 
-    static orange(): void {
+    static orangeEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.orange;
+        const g = gameState.orangeEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }

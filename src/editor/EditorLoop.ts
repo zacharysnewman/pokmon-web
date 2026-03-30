@@ -53,16 +53,16 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): void
             state.level.playerStart = { x, y };
             break;
         case 'enemy_red':
-            state.level.enemyStarts.red = { x, y };
+            state.level.enemyStarts.redEnemy = { x, y };
             break;
         case 'enemy_cyan':
-            state.level.enemyStarts.cyan = { x, y };
+            state.level.enemyStarts.cyanEnemy = { x, y };
             break;
         case 'enemy_hotpink':
-            state.level.enemyStarts.hotpink = { x, y };
+            state.level.enemyStarts.hotpinkEnemy = { x, y };
             break;
         case 'enemy_orange':
-            state.level.enemyStarts.orange = { x, y };
+            state.level.enemyStarts.orangeEnemy = { x, y };
             break;
         case 'fruit_spawn':
             state.level.fruitSpawn = { x, y };
@@ -102,10 +102,10 @@ function applyToolDrag(state: EditorState, cell: { x: number; y: number }): void
             break;
         }
         case 'player_spawn':   state.level.playerStart = { x, y }; break;
-        case 'enemy_red':   state.level.enemyStarts.red = { x, y }; break;
-        case 'enemy_cyan':     state.level.enemyStarts.cyan   = { x, y }; break;
-        case 'enemy_hotpink':    state.level.enemyStarts.hotpink  = { x, y }; break;
-        case 'enemy_orange':    state.level.enemyStarts.orange  = { x, y }; break;
+        case 'enemy_red':   state.level.enemyStarts.redEnemy = { x, y }; break;
+        case 'enemy_cyan':     state.level.enemyStarts.cyanEnemy   = { x, y }; break;
+        case 'enemy_hotpink':    state.level.enemyStarts.hotpinkEnemy  = { x, y }; break;
+        case 'enemy_orange':    state.level.enemyStarts.orangeEnemy  = { x, y }; break;
         case 'fruit_spawn':    state.level.fruitSpawn        = { x, y }; break;
         case 'enemy_house_door': state.level.enemyHouseDoor  = { x, y }; break;
         case 'tunnel_config':  state.level.tunnelRow = y; break;
@@ -178,10 +178,10 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
 
     // Spawn markers
     drawSpawnMarker(ctx, lv.playerStart,         'yellow',  'P');
-    drawSpawnMarker(ctx, lv.enemyStarts.red,  '#FF3333', 'R');
-    drawSpawnMarker(ctx, lv.enemyStarts.cyan,    '#00FFFF', 'C');
-    drawSpawnMarker(ctx, lv.enemyStarts.hotpink,   '#FFB8FF', 'H');
-    drawSpawnMarker(ctx, lv.enemyStarts.orange,   '#FFB852', 'O');
+    drawSpawnMarker(ctx, lv.enemyStarts.redEnemy,  '#FF3333', 'R');
+    drawSpawnMarker(ctx, lv.enemyStarts.cyanEnemy,    '#00FFFF', 'C');
+    drawSpawnMarker(ctx, lv.enemyStarts.hotpinkEnemy,   '#FFB8FF', 'H');
+    drawSpawnMarker(ctx, lv.enemyStarts.orangeEnemy,   '#FFB852', 'O');
     drawSpawnMarker(ctx, lv.fruitSpawn,          '#FF6600', 'F');
 
     // Grid lines

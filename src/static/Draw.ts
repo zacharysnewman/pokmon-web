@@ -971,7 +971,7 @@ export class Draw {
                 const pivot = gameState.debugCyanPivot;
                 if (pivot) {
                     const pp = tc(pivot.x, pivot.y);
-                    const bl = gameState.red;
+                    const bl = gameState.redEnemy;
                     ctx.save();
                     ctx.globalAlpha = 0.55;
                     ctx.strokeStyle = 'white';

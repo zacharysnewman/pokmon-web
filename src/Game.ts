@@ -371,7 +371,7 @@ function releaseEnemy(enemy: IGameObject): void {
 }
 
 function getNextHouseEnemy(): IGameObject | null {
-    for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
+    for (const enemy of [gameState.hotpinkEnemy, gameState.cyanEnemy, gameState.orangeEnemy]) {
         if (enemy.enemyMode === 'house') return enemy;
     }
     return null;
@@ -380,7 +380,7 @@ function getNextHouseEnemy(): IGameObject | null {
 // Release all house enemies whose personal counter has reached their limit (cascading)
 function checkAndReleaseHouseEnemies(): void {
     if (gameState.useGlobalDotCounter) return; // global counter handles its own releases
-    for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
+    for (const enemy of [gameState.hotpinkEnemy, gameState.cyanEnemy, gameState.orangeEnemy]) {
         if (enemy.enemyMode !== 'house') continue;
         const limit = getPersonalLimit(enemy.color, gameState.level);
         if (gameState.personalDotCounters[enemy.color] >= limit) {
@@ -409,20 +409,20 @@ function incrementDotCounters(): void {
     if (gameState.useGlobalDotCounter) {
         gameState.globalDotCounter++;
         const gc = gameState.globalDotCounter;
-        if (gc >= GLOBAL_THRESHOLDS['hotpink'] && gameState.hotpink.enemyMode === 'house') {
-            releaseEnemy(gameState.hotpink);
+        if (gc >= GLOBAL_THRESHOLDS['hotpink'] && gameState.hotpinkEnemy.enemyMode === 'house') {
+            releaseEnemy(gameState.hotpinkEnemy);
         }
-        if (gc >= GLOBAL_THRESHOLDS['cyan'] && gameState.cyan.enemyMode === 'house') {
-            releaseEnemy(gameState.cyan);
+        if (gc >= GLOBAL_THRESHOLDS['cyan'] && gameState.cyanEnemy.enemyMode === 'house') {
+            releaseEnemy(gameState.cyanEnemy);
         }
-        if (gc >= GLOBAL_THRESHOLDS['orange'] && gameState.orange.enemyMode === 'house') {
-            releaseEnemy(gameState.orange);
+        if (gc >= GLOBAL_THRESHOLDS['orange'] && gameState.orangeEnemy.enemyMode === 'house') {
+            releaseEnemy(gameState.orangeEnemy);
             gameState.useGlobalDotCounter = false; // deactivate (orange was inside at 32)
         }
         // If orange was already outside at 32, the counter keeps running (stuck-enemy exploit)
     } else {
         // Increment only the active enemy's personal counter (first one still in house)
-        for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
+        for (const enemy of [gameState.hotpinkEnemy, gameState.cyanEnemy, gameState.orangeEnemy]) {
             if (enemy.enemyMode === 'house') {
                 gameState.personalDotCounters[enemy.color]++;
                 break;
@@ -433,7 +433,7 @@ function incrementDotCounters(): void {
 }
 
 function updateIdleTimer(dt: number): void {
-    const hasHouseEnemy = [gameState.hotpink, gameState.cyan, gameState.orange]
+    const hasHouseEnemy = [gameState.hotpinkEnemy, gameState.cyanEnemy, gameState.orangeEnemy]
         .some(g => g.enemyMode === 'house');
     if (!hasHouseEnemy) { gameState.idleTimer = 0; return; }
 
@@ -478,17 +478,17 @@ function resetPositions(afterDeath = false): void {
     }
 
     // Red always starts outside
-    const bl = gameState.red;
-    const blPos = tileToPixel(lv.enemyStarts.red.x, lv.enemyStarts.red.y);
+    const bl = gameState.redEnemy;
+    const blPos = tileToPixel(lv.enemyStarts.redEnemy.x, lv.enemyStarts.redEnemy.y);
     bl.x = blPos.x; bl.y = blPos.y;
     bl.moveDir = 'left'; bl.moveSpeed = getEnemyNormalSpeed(gameState.level);
     bl.enemyMode = 'scatter';
 
     // House enemies reset to their starting positions inside
     const houseActors: Array<{ enemy: IGameObject; start: { x: number; y: number }; dir: Direction }> = [
-        { enemy: gameState.hotpink, start: lv.enemyStarts.hotpink, dir: 'down' }, // center starts down
-        { enemy: gameState.cyan,    start: lv.enemyStarts.cyan,    dir: 'up'   }, // left starts up
-        { enemy: gameState.orange,  start: lv.enemyStarts.orange,  dir: 'up'   }, // right starts up
+        { enemy: gameState.hotpinkEnemy, start: lv.enemyStarts.hotpinkEnemy, dir: 'down' }, // center starts down
+        { enemy: gameState.cyanEnemy,    start: lv.enemyStarts.cyanEnemy,    dir: 'up'   }, // left starts up
+        { enemy: gameState.orangeEnemy,  start: lv.enemyStarts.orangeEnemy,  dir: 'up'   }, // right starts up
     ];
     for (const { enemy, start, dir } of houseActors) {
         const pos = tileToPixel(start.x, start.y);
@@ -819,14 +819,14 @@ function initializeLevel(slots: ConfirmedSlot[]): void {
     gameState.players = slots.map(s => createPlayer(s.id, lv.playerStart, s.input));
 
     const es = lv.enemyStarts;
-    gameState.red     = new GameObject('red',     es.red.x,     es.red.y,     0.667, Move.red,     Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.red));
-    gameState.cyan    = new GameObject('cyan',    es.cyan.x,    es.cyan.y,    0.667, Move.cyan,    Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.cyan));
-    gameState.hotpink = new GameObject('hotpink', es.hotpink.x, es.hotpink.y, 0.667, Move.hotpink, Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.hotpink));
-    gameState.orange  = new GameObject('orange',  es.orange.x,  es.orange.y,  0.667, Move.orange,  Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.orange));
+    gameState.redEnemy     = new GameObject('red',     es.redEnemy.x,     es.redEnemy.y,     0.667, Move.redEnemy,     Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.redEnemy));
+    gameState.cyanEnemy    = new GameObject('cyan',    es.cyanEnemy.x,    es.cyanEnemy.y,    0.667, Move.cyanEnemy,    Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.cyanEnemy));
+    gameState.hotpinkEnemy = new GameObject('hotpink', es.hotpinkEnemy.x, es.hotpinkEnemy.y, 0.667, Move.hotpinkEnemy, Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.hotpinkEnemy));
+    gameState.orangeEnemy  = new GameObject('orange',  es.orangeEnemy.x,  es.orangeEnemy.y,  0.667, Move.orangeEnemy,  Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.orangeEnemy));
 
     // Player actors drawn first (under enemies)
-    gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.red, gameState.cyan, gameState.hotpink, gameState.orange];
-    gameState.enemies      = [gameState.red, gameState.cyan, gameState.hotpink, gameState.orange];
+    gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.redEnemy, gameState.cyanEnemy, gameState.hotpinkEnemy, gameState.orangeEnemy];
+    gameState.enemies      = [gameState.redEnemy, gameState.cyanEnemy, gameState.hotpinkEnemy, gameState.orangeEnemy];
 
     // resetPositions sets all positions, modes, and triggers initial house releases
     resetPositions(false);

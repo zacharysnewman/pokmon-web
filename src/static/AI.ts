@@ -73,10 +73,10 @@ export class AI {
         } else if (mode === 'scatter') {
             const st = gameState.currentLevel.scatterTargets;
             const cornerByColor: Record<string, { x: number; y: number }> = {
-                'red':     st.red,
-                'hotpink': st.hotpink,
-                'cyan':    st.cyan,
-                'orange':  st.orange,
+                'red':     st.redEnemy,
+                'hotpink': st.hotpinkEnemy,
+                'cyan':    st.cyanEnemy,
+                'orange':  st.orangeEnemy,
             };
             // Cruise Elroy: red overrides scatter to chase nearest player
             if (obj.color === 'red' && gameState.elroyLevel > 0) {
@@ -107,9 +107,9 @@ export class AI {
             } else if (obj.color === 'cyan') {
                 // cyan: doubled vector from red through 2 tiles ahead of nearest player
                 const intermediate = AI.tilesAheadOf(player, 2);
-                const red = gameState.red;
-                targetX = 2 * intermediate.x - red.roundedX();
-                targetY = 2 * intermediate.y - red.roundedY();
+                const redEnemy = gameState.redEnemy;
+                targetX = 2 * intermediate.x - redEnemy.roundedX();
+                targetY = 2 * intermediate.y - redEnemy.roundedY();
                 if (gameState.debugEnabled) gameState.debugCyanPivot = intermediate;
             } else if (obj.color === 'orange') {
                 // orange: target nearest player if ≥8 tiles away, else retreat to corner

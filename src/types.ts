@@ -44,10 +44,10 @@ export interface LevelData {
     tiles: TileValue[][];
     playerStart: { x: number; y: number };
     enemyStarts: {
-        red:     { x: number; y: number };
-        cyan:    { x: number; y: number };
-        hotpink: { x: number; y: number };
-        orange:  { x: number; y: number };
+        redEnemy:     { x: number; y: number };
+        cyanEnemy: { x: number; y: number };
+        hotpinkEnemy: { x: number; y: number };
+        orangeEnemy: { x: number; y: number };
     };
     fruitSpawn:       { x: number; y: number };
     tunnelRow:        number;
@@ -56,9 +56,9 @@ export interface LevelData {
     redZoneTiles:     { x: number; y: number }[];
     enemyHouseDoor:   { x: number; y: number };
     scatterTargets: {
-        red:     { x: number; y: number };
-        cyan:    { x: number; y: number };
-        hotpink: { x: number; y: number };
-        orange:  { x: number; y: number };
+        redEnemy:     { x: number; y: number };
+        cyanEnemy: { x: number; y: number };
+        hotpinkEnemy: { x: number; y: number };
+        orangeEnemy: { x: number; y: number };
     };
 }
