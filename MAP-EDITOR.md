@@ -438,10 +438,14 @@ On game exit (returningToMenu flag) → back to editorLoop()
 
 ## 12. Phased Implementation
 
-### Phase 1 — Foundation
-- Define `LevelData` interface in `src/types.ts`
-- Refactor built-in level: merge `Levels.level1` + all hardcoded spawn/tunnel/zone constants into a `LevelData` object
-- Update `Game.ts`, `Move.ts`, etc. to read from `LevelData` instead of constants
+### Phase 1 — Foundation ✅
+- [x] Define `LevelData` interface in `src/types.ts`
+- [x] Create `src/tiles.ts` with named tile value constants
+- [x] Refactor built-in level: `Levels.level1Data` wraps tile array + all spawn/tunnel/zone constants into a `LevelData` object
+- [x] Add `gameState.currentLevel: LevelData` set in `initializeLevel()`
+- [x] Update `Game.ts` to read spawn positions, tunnel constants, fruit spawn from `currentLevel`
+- [x] Update `AI.ts` to read scatter targets, tunnel row, red zone tiles from `currentLevel`
+- [x] Update `Draw.ts` to read red zone tiles from `currentLevel`
 - Verify game runs identically with refactored data (regression test: play through, check enemy AI, tunnels, scoring)
 
 ### Phase 2 — Basic Editor

@@ -1,4 +1,4 @@
-import { unit, TUNNEL_ROW, TUNNEL_SLOW_COL_MAX, TUNNEL_SLOW_COL_MIN } from './constants';
+import { unit } from './constants';
 import { gameState } from './game-state';
 import { Time }  from './static/Time';
 import { Draw }  from './static/Draw';
@@ -19,23 +19,12 @@ import { TouchPlayerInput    } from './input/TouchPlayerInput';
 import { GamepadPlayerInput  } from './input/GamepadPlayerInput';
 import { CompositePlayerInput } from './input/CompositePlayerInput';
 
-// Starting tile positions for each actor
-const START = {
-    player: { x: 13.5, y: 26 },
-    blinky: { x: 13.5, y: 14 },
-    inky:   { x: 12,   y: 17 },
-    pinky:  { x: 13.5, y: 17 },
-    clyde:  { x: 15,   y: 17 },
-};
 
 // Enemy eye-return speed (constant regardless of level)
 const SPEED_EYES = 1.5;
 
 // ── Fruit (Phase 7) ───────────────────────────────────────────────────────────
 
-// Fruit spawns below the enemy house at tile (13, 20)
-const FRUIT_X = 13 * unit + unit / 2;
-const FRUIT_Y = 20 * unit + unit / 2;
 const FRUIT_DURATION = 9.5; // seconds
 
 function getFruitPoints(level: number): number {
@@ -50,7 +39,8 @@ function getFruitPoints(level: number): number {
 }
 
 function spawnFruit(): void {
-    gameState.fruitActive = { x: FRUIT_X, y: FRUIT_Y, endTime: Time.timeSinceStart + FRUIT_DURATION };
+    const { x, y } = gameState.currentLevel.fruitSpawn;
+    gameState.fruitActive = { x: x * unit + unit / 2, y: y * unit + unit / 2, endTime: Time.timeSinceStart + FRUIT_DURATION };
 }
 
 function updateFruit(): void {
@@ -170,9 +160,10 @@ function getCurrentPlayerSpeed(): number {
 }
 
 function isEnemyInTunnel(enemy: IGameObject): boolean {
-    if (enemy.roundedY() !== TUNNEL_ROW) return false;
+    const lvl = gameState.currentLevel;
+    if (enemy.roundedY() !== lvl.tunnelRow) return false;
     const col = enemy.roundedX();
-    return col <= TUNNEL_SLOW_COL_MAX || col >= TUNNEL_SLOW_COL_MIN;
+    return col <= lvl.tunnelSlowColMax || col >= lvl.tunnelSlowColMin;
 }
 
 // Apply correct speed to all active enemies based on their current mode and position
@@ -229,7 +220,7 @@ function getFrightenedDuration(level: number): number {
 
 // Returns true if enemy can physically move in dir from its current rounded tile
 function canEnemyMoveDir(enemy: IGameObject, dir: Direction): boolean {
-    const onTunnelRow = enemy.roundedY() === TUNNEL_ROW;
+    const onTunnelRow = enemy.roundedY() === gameState.currentLevel.tunnelRow;
     switch (dir) {
         case 'left':  return (enemy.leftObject()   ?? 0) > 2 || (onTunnelRow && enemy.leftObject()  === undefined);
         case 'right': return (enemy.rightObject()  ?? 0) > 2 || (onTunnelRow && enemy.rightObject() === undefined);
@@ -474,8 +465,10 @@ function makeEnemyTileCentered(getEnemy: () => IGameObject): (_x: number, _y: nu
 // ── Positions & Reset ─────────────────────────────────────────────────────────
 
 function resetPositions(afterDeath = false): void {
+    const lv = gameState.currentLevel;
+
     // Players
-    const pmPos = tileToPixel(START.player.x, START.player.y);
+    const pmPos = tileToPixel(lv.playerStart.x, lv.playerStart.y);
     for (const player of gameState.players) {
         player.actor.x = pmPos.x; player.actor.y = pmPos.y;
         player.actor.moveDir = (player.id === 2 || player.id === 4) ? 'right' : 'left';
@@ -485,16 +478,16 @@ function resetPositions(afterDeath = false): void {
 
     // Blinky always starts outside
     const bl = gameState.blinky;
-    const blPos = tileToPixel(START.blinky.x, START.blinky.y);
+    const blPos = tileToPixel(lv.enemyStarts.blinky.x, lv.enemyStarts.blinky.y);
     bl.x = blPos.x; bl.y = blPos.y;
     bl.moveDir = 'left'; bl.moveSpeed = getEnemyNormalSpeed(gameState.level);
     bl.enemyMode = 'scatter';
 
     // House ghosts reset to their starting positions inside
     const houseActors: Array<{ enemy: IGameObject; start: { x: number; y: number }; dir: Direction }> = [
-        { enemy: gameState.pinky, start: START.pinky, dir: 'down' }, // center starts down
-        { enemy: gameState.inky,  start: START.inky,  dir: 'up'   }, // left starts up
-        { enemy: gameState.clyde, start: START.clyde, dir: 'up'   }, // right starts up
+        { enemy: gameState.pinky, start: lv.enemyStarts.pinky, dir: 'down' }, // center starts down
+        { enemy: gameState.inky,  start: lv.enemyStarts.inky,  dir: 'up'   }, // left starts up
+        { enemy: gameState.clyde, start: lv.enemyStarts.clyde, dir: 'up'   }, // right starts up
     ];
     for (const { enemy, start, dir } of houseActors) {
         const pos = tileToPixel(start.x, start.y);
@@ -545,7 +538,7 @@ function levelClear(): void {
     gameState.fruitHistory.push(gameState.level);
     Time.addTimer(1.5, () => {
         gameState.level++;
-        Levels.levelDynamic = Levels.level1.map(row => [...row]);
+        Levels.levelDynamic = gameState.currentLevel.tiles.map(row => [...row]);
         gameState.dotsEaten = 0;
         gameState.fruitSpawned1 = false;
         gameState.fruitSpawned2 = false;
@@ -811,20 +804,24 @@ function createPlayer(id: number, startTile: { x: number; y: number }, input: Pl
 }
 
 function initializeLevel(slots: ConfirmedSlot[]): void {
-    Levels.levelSetup   = Levels.level1;
-    Levels.levelDynamic = Levels.level1.map(row => [...row]);
+    gameState.currentLevel = Levels.level1Data;
+    const lv = gameState.currentLevel;
+
+    Levels.levelSetup   = lv.tiles;
+    Levels.levelDynamic = lv.tiles.map(row => [...row]);
 
     // Pre-initialize personal counters so resetPositions can reference them
     gameState.personalDotCounters = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
     gameState.modeChangesInHouse  = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
 
     // Create all players from confirmed slots
-    gameState.players = slots.map(s => createPlayer(s.id, START.player, s.input));
+    gameState.players = slots.map(s => createPlayer(s.id, lv.playerStart, s.input));
 
-    gameState.blinky = new GameObject('red',     START.blinky.x, START.blinky.y, 0.667, Move.blinky, Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.blinky));
-    gameState.inky   = new GameObject('cyan',    START.inky.x,   START.inky.y,   0.667, Move.inky,   Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.inky));
-    gameState.pinky  = new GameObject('hotpink', START.pinky.x,  START.pinky.y,  0.667, Move.pinky,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.pinky));
-    gameState.clyde  = new GameObject('orange',  START.clyde.x,  START.clyde.y,  0.667, Move.clyde,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.clyde));
+    const es = lv.enemyStarts;
+    gameState.blinky = new GameObject('red',     es.blinky.x, es.blinky.y, 0.667, Move.blinky, Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.blinky));
+    gameState.inky   = new GameObject('cyan',    es.inky.x,   es.inky.y,   0.667, Move.inky,   Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.inky));
+    gameState.pinky  = new GameObject('hotpink', es.pinky.x,  es.pinky.y,  0.667, Move.pinky,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.pinky));
+    gameState.clyde  = new GameObject('orange',  es.clyde.x,  es.clyde.y,  0.667, Move.clyde,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.clyde));
 
     // Player actors drawn first (under enemies)
     gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];

@@ -1,7 +1,8 @@
-import type { IGameObject, PlayerState } from './types';
+import type { IGameObject, LevelData, PlayerState } from './types';
 
 export const gameState = {
     canvas: null as unknown as HTMLCanvasElement,
+    currentLevel: null as unknown as LevelData,
     ctx: null as unknown as CanvasRenderingContext2D,
     players: [] as PlayerState[],
     sharedLives: 0,

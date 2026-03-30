@@ -37,3 +37,28 @@ export interface IGameObject {
     topObject(): TileValue | undefined;
     bottomObject(): TileValue | undefined;
 }
+
+export interface LevelData {
+    version: number;
+    name: string;
+    tiles: TileValue[][];
+    playerStart: { x: number; y: number };
+    enemyStarts: {
+        blinky: { x: number; y: number };
+        inky:   { x: number; y: number };
+        pinky:  { x: number; y: number };
+        clyde:  { x: number; y: number };
+    };
+    fruitSpawn:       { x: number; y: number };
+    tunnelRow:        number;
+    tunnelSlowColMax: number;
+    tunnelSlowColMin: number;
+    redZoneTiles:     { x: number; y: number }[];
+    enemyHouseDoor:   { x: number; y: number };
+    scatterTargets: {
+        blinky: { x: number; y: number };
+        inky:   { x: number; y: number };
+        pinky:  { x: number; y: number };
+        clyde:  { x: number; y: number };
+    };
+}

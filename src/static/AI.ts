@@ -1,6 +1,5 @@
 import { gameState } from '../game-state';
 import { getDistance } from '../utils';
-import { RED_ZONE, TUNNEL_ROW } from '../constants';
 import type { IGameObject, Direction } from '../types';
 
 interface TurnOption {
@@ -11,14 +10,6 @@ interface TurnOption {
 
 // Red-zone T-intersections: enemies in scatter/chase cannot turn upward here.
 // Two pairs flank the enemy house: (12,14)+(15,14) above, (12,26)+(15,26) below.
-
-// Scatter corner targets by enemy color
-const SCATTER_TARGETS: Record<string, { x: number; y: number }> = {
-    'red':     { x: 26, y: 0  },  // Blinky — top-right
-    'hotpink': { x: 2,  y: 0  },  // Pinky — top-left
-    'cyan':    { x: 27, y: 34 },  // Inky — bottom-right
-    'orange':  { x: 0,  y: 34 },  // Clyde — bottom-left
-};
 
 // Enemy house return tile — eyes navigate here to revive
 const EYES_TARGET = { x: 13, y: 14 };
@@ -80,6 +71,13 @@ export class AI {
             targetX = EYES_TARGET.x;
             targetY = EYES_TARGET.y;
         } else if (mode === 'scatter') {
+            const st = gameState.currentLevel.scatterTargets;
+            const cornerByColor: Record<string, { x: number; y: number }> = {
+                'red':     st.blinky,
+                'hotpink': st.pinky,
+                'cyan':    st.inky,
+                'orange':  st.clyde,
+            };
             // Cruise Elroy: Blinky overrides scatter to chase nearest player
             if (obj.color === 'red' && gameState.elroyLevel > 0) {
                 const target = AI.nearestPlayer(obj);
@@ -87,12 +85,12 @@ export class AI {
                     targetX = target.roundedX();
                     targetY = target.roundedY();
                 } else {
-                    const corner = SCATTER_TARGETS[obj.color] ?? { x: 0, y: 0 };
+                    const corner = cornerByColor[obj.color] ?? { x: 0, y: 0 };
                     targetX = corner.x;
                     targetY = corner.y;
                 }
             } else {
-                const corner = SCATTER_TARGETS[obj.color] ?? { x: 0, y: 0 };
+                const corner = cornerByColor[obj.color] ?? { x: 0, y: 0 };
                 targetX = corner.x;
                 targetY = corner.y;
             }
@@ -134,8 +132,9 @@ export class AI {
         if (gameState.debugEnabled) gameState.debugEnemyTargets[obj.color] = { x: targetX, y: targetY };
 
         // Treat undefined (off-grid) as passable on the tunnel row so enemies can wrap
-        const onTunnelRow = myY === TUNNEL_ROW;
-        const inRedZone = (mode === 'scatter' || mode === 'chase') && RED_ZONE.has(`${myX},${myY}`);
+        const onTunnelRow = myY === gameState.currentLevel.tunnelRow;
+        const inRedZone = (mode === 'scatter' || mode === 'chase') &&
+            gameState.currentLevel.redZoneTiles.some(t => t.x === myX && t.y === myY);
         const canMoveLeft  = ((obj.leftObject()  ?? 0) > 2 || (onTunnelRow && obj.leftObject()  === undefined)) && obj.moveDir !== 'right';
         const canMoveRight = ((obj.rightObject() ?? 0) > 2 || (onTunnelRow && obj.rightObject() === undefined)) && obj.moveDir !== 'left';
         const canMoveUp    = (obj.topObject()    ?? 0) > 2 && obj.moveDir !== 'down' && !inRedZone;
@@ -192,7 +191,7 @@ export class AI {
     // PRNG-based random direction selection for frightened enemies
     static enemyFrightenedMove(obj: IGameObject): void {
         const allDirs: Direction[] = ['up', 'left', 'down', 'right'];
-        const onTunnelRow = obj.roundedY() === TUNNEL_ROW;
+        const onTunnelRow = obj.roundedY() === gameState.currentLevel.tunnelRow;
         const canMove: Record<Direction, boolean> = {
             left:  ((obj.leftObject()  ?? 0) > 2 || (onTunnelRow && obj.leftObject()  === undefined)) && obj.moveDir !== 'right',
             right: ((obj.rightObject() ?? 0) > 2 || (onTunnelRow && obj.rightObject() === undefined)) && obj.moveDir !== 'left',

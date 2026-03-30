@@ -1,4 +1,4 @@
-import type { TileValue } from '../types';
+import type { LevelData, TileValue } from '../types';
 
 export class Levels {
     static level1: TileValue[][] = [
@@ -42,4 +42,34 @@ export class Levels {
 
     static levelSetup: TileValue[][] = [];
     static levelDynamic: TileValue[][] = [];
+
+    static level1Data: LevelData = {
+        version: 1,
+        name: 'Classic',
+        tiles: Levels.level1,
+        playerStart:  { x: 13.5, y: 26 },
+        enemyStarts: {
+            blinky: { x: 13.5, y: 14 },
+            inky:   { x: 12,   y: 17 },
+            pinky:  { x: 13.5, y: 17 },
+            clyde:  { x: 15,   y: 17 },
+        },
+        fruitSpawn:       { x: 13, y: 20 },
+        tunnelRow:        17,
+        tunnelSlowColMax: 5,
+        tunnelSlowColMin: 22,
+        redZoneTiles: [
+            { x: 12, y: 14 },
+            { x: 15, y: 14 },
+            { x: 12, y: 26 },
+            { x: 15, y: 26 },
+        ],
+        enemyHouseDoor: { x: 14, y: 15 },
+        scatterTargets: {
+            blinky: { x: 26, y: 0  },
+            inky:   { x: 27, y: 34 },
+            pinky:  { x: 2,  y: 0  },
+            clyde:  { x: 0,  y: 34 },
+        },
+    };
 }
