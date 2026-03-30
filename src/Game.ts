@@ -851,16 +851,23 @@ function updateAmbientSiren(): void {
 function update(): void {
     try { Time.update(); } catch (e) { console.error('Time.update error:', e); }
 
-    if (returningToMenu) {
+    if (returningToMenu || returningToPlayerSelect) {
+        const toSelect = returningToPlayerSelect;
         returningToMenu = false;
-        gameStarted = false;
+        returningToPlayerSelect = false;
         Sound.stopSiren();
-        menuMusicPlaying = false; // startScreenLoop will auto-play since audio is unlocked
         for (const p of gameState.players) p.input.destroy();
         gameState.players = [];
-        document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
-        startScreenLoop();
-        return; // end this loop; startScreenLoop starts its own rAF
+        if (toSelect) {
+            gameStarted = true; // keep startScreenLoop from re-entering
+            playerSelectLoop();
+        } else {
+            gameStarted = false;
+            menuMusicPlaying = false;
+            document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
+            startScreenLoop();
+        }
+        return;
     }
 
     if (!gameState.frozen && !gameState.gameOver) {
@@ -959,6 +966,7 @@ function start(slots: ConfirmedSlot[]): void {
 
 let gameStarted = false;
 let returningToMenu = false;
+let returningToPlayerSelect = false;
 let debugExtraPlayers = 0; // injected phantom players for testing multiplayer
 let audioUnlocked = false;   // true after first user gesture (AudioContext created)
 let menuMusicPlaying = false; // true while menu music is actively playing
@@ -1399,7 +1407,7 @@ window.onload = function () {
         };
 
         (document.getElementById('dbg-player-select') as HTMLButtonElement).onclick = () => {
-            returningToMenu = true;
+            returningToPlayerSelect = true;
         };
 
         (document.getElementById('dbg-initials') as HTMLButtonElement).onclick = () => {
