@@ -746,6 +746,13 @@ function stopEditorLoop(): void {
     editorLoopId++;
 }
 
+/**
+ * True while a play-test owns the canvas. The editor's canvas listeners are
+ * attached once and never removed, so without this a swipe during a test would
+ * run editor tools — painting tiles into the level being played.
+ */
+let testRunning = false;
+
 // ── Save / Load ───────────────────────────────────────────────────────────────
 
 function exportLevelJSON(level: LevelData): void {
@@ -851,8 +858,8 @@ function layoutCanvas(): void {
         reserveY = panelHeight;
     }
 
-    canvas.style.width        = `${560 * scale}px`;
-    canvas.style.height       = `${720 * scale}px`;
+    canvas.style.width        = `${Math.floor(560 * scale)}px`;
+    canvas.style.height       = `${Math.floor(720 * scale)}px`;
     canvas.style.marginRight  = `${reserveX}px`;
     canvas.style.marginBottom = `${reserveY}px`;
 
@@ -938,7 +945,10 @@ function openLibraryModal(
         color: #eee;
     }
     #ed-lib-box h3 { color: #ff0; margin: 0; font-size: 20px; }
-    #ed-lib-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    #ed-lib-list {
+        overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px;
+        touch-action: pan-y; overscroll-behavior: contain;
+    }
     .ed-lib-entry {
         background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
         padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
@@ -1081,9 +1091,14 @@ function showExitTestButton(): void {
     };
     button.addEventListener('click', leave);
     button.addEventListener('touchend', leave, { passive: false });
-    // The game reads swipes from `document`, so keep taps on the button out of it.
+    // The game reads swipes from `document`, so keep taps on the button out of
+    // it — and preventDefault too, since stopping propagation alone would leave
+    // nobody to stop the browser panning the page.
     for (const type of ['touchstart', 'touchmove', 'mousedown', 'mouseup'] as const) {
-        button.addEventListener(type, (event) => event.stopPropagation(), { passive: false });
+        button.addEventListener(type, (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        }, { passive: false });
     }
 
     document.body.appendChild(button);
@@ -1091,6 +1106,7 @@ function showExitTestButton(): void {
 
 function runTestGame(state: EditorState, level: LevelData): void {
     stopEditorLoop();
+    testRunning = true;
     const panel = document.getElementById('editor-panel');
     const toggle = document.getElementById('ed-toggle');
     panel?.remove();
@@ -1102,6 +1118,7 @@ function runTestGame(state: EditorState, level: LevelData): void {
     showExitTestButton();
 
     startTestGame(level, () => {
+        testRunning = false;
         document.getElementById('ed-exit-test')?.remove();
         if (panel) {
             document.body.appendChild(panel);
@@ -1853,6 +1870,7 @@ function attachCanvasEvents(state: EditorState): void {
     const canvas = gameState.canvas;
 
     function onDown(clientX: number, clientY: number): void {
+        if (testRunning) return;
         const cell = tileFromCanvas(clientX, clientY);
         if (!cell) return;
         isPainting = true;
@@ -1863,6 +1881,7 @@ function attachCanvasEvents(state: EditorState): void {
     }
 
     function onMove(clientX: number, clientY: number): void {
+        if (testRunning) return;
         const cell = tileFromCanvas(clientX, clientY);
         state.hoveredCell = cell;
         if (state.selectedTool === 'move') {
@@ -1877,6 +1896,7 @@ function attachCanvasEvents(state: EditorState): void {
     }
 
     function onUp(): void {
+        if (testRunning) return;
         isPainting = false;
         state.draggingMarker = null;
         pendingUndo = null;

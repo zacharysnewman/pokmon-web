@@ -1352,8 +1352,8 @@ function resizeCanvas(): void {
     const canvas = gameState.canvas;
     const { width, height } = viewportSize();
     const scale = Math.min(width / 560, height / 720);
-    canvas.style.width  = `${560 * scale}px`;
-    canvas.style.height = `${720 * scale}px`;
+    canvas.style.width  = `${Math.floor(560 * scale)}px`;
+    canvas.style.height = `${Math.floor(720 * scale)}px`;
 }
 
 window.onload = function () {

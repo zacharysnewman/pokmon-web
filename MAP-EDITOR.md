@@ -199,6 +199,9 @@ The button sits in the letterboxing beside the maze rather than over it, and
 keeps its taps away from the game's swipe handling, which listens on
 `document`.
 
+While a test owns the canvas the editor's own canvas input is inert, so a swipe
+aimed at the game cannot paint tiles into the level being played.
+
 ---
 
 ## Level Library (Multi-Map)
