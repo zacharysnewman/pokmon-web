@@ -297,18 +297,30 @@ phone in portrait, two in the side panel — instead of one control per row.
 Readouts (validation results, budget bars, the shortcut list) take whatever
 space is left and scroll on their own if there is not enough; controls never do.
 
-### Docking
+### Docking, and why the maze stays full size
 
-| Screen | Dock |
-|---|---|
-| ≥ 880 px wide | Side panel, 268 px |
-| Landscape phone | Side panel — a bottom sheet would be two rows tall |
-| Portrait phone | Bottom sheet, `clamp(300px, 50vh, 420px)` |
+The maze is sized first; the panel takes the space the maze cannot use.
 
-The canvas is resized and offset to clear whichever dock is in use, re-checked
-each frame because mobile browsers do not reliably fire `resize` when the URL
-bar slides away. **Hide** (`✕`, or `H`) collapses the panel to a floating ✏
-button and gives the maze the full screen.
+| Screen | Dock | Maze |
+|---|---|---|
+| ≥ 880 px wide | Side panel, 268 px | Full height — the maze never reaches the panel |
+| Landscape phone | Side panel — a bottom sheet would be two rows tall | Full height |
+| Portrait phone | Bottom sheet, sized to the leftover band | Full width |
+
+The maze is 28 × 36, far squarer than a phone screen, so fitting it to the
+width of a portrait phone leaves a deep band at the bottom — which is exactly
+where the sheet goes. On a 390 × 844 phone that is a 344 px sheet under a maze
+at 100 % of the size it could reach with no panel at all. Desktop, laptop and
+landscape phones are likewise 100 %.
+
+The maze only gives way when the leftover band cannot hold a row of controls
+(under 280 px): a 360 × 640 phone lands at 78 %, a 820 × 1180 tablet at 85 %.
+Overlaying the panel would keep those at 100 % but hide half the maze behind
+it, which is worse for editing than a slightly smaller maze.
+
+The layout is re-checked each frame, because mobile browsers do not reliably
+fire `resize` when the URL bar slides away. **Hide** (`✕`, or `H`) collapses the
+panel to a floating ✏ button and gives the maze the whole screen.
 
 ## Accessibility
 
@@ -426,6 +438,7 @@ interface LevelData {
 | Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
 | One zone per tile, one object per tile | ✅ Complete |
 | Tabbed toolbar — every control reachable without scrolling | ✅ Complete |
+| Maze at full size, panel in the space it cannot use | ✅ Complete |
 | HUD rows blocked and marked, full-grid boundary | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |

@@ -767,15 +767,11 @@ function importLevelJSON(onLoad: (level: LevelData) => void): void {
 // ── Layout: keep the maze clear of the panel ──────────────────────────────────
 
 const PANEL_WIDTH = 268;
-const BOTTOM_DOCK_VH = 50;
-const BOTTOM_DOCK_MIN = 300;
-const BOTTOM_DOCK_MAX = 420;
-
-/** Height of the bottom sheet — kept in step with the CSS clamp below. */
-function bottomDockHeight(): number {
-    const vh = Math.round(window.innerHeight * (BOTTOM_DOCK_VH / 100));
-    return Math.min(BOTTOM_DOCK_MAX, Math.max(BOTTOM_DOCK_MIN, vh));
-}
+const PANEL_GAP = 16;
+/** Below this the sheet cannot hold a row of controls, so the maze gives way. */
+const BOTTOM_DOCK_MIN = 280;
+/** A panel shorter than this switches to the compact control sizes. */
+const COMPACT_PANEL_HEIGHT = 400;
 let panelOpen = true;
 
 type PanelDock = 'side' | 'bottom';
@@ -792,24 +788,62 @@ function currentDock(): PanelDock {
 
 let lastLayoutKey = '';
 
-/** Size and offset the canvas so the panel never covers the maze. */
+/**
+ * Size the maze as large as the viewport allows, and give the panel the space
+ * the maze cannot use.
+ *
+ * The maze is 28 × 36, far squarer than a phone screen: fitted to the width of
+ * a portrait phone it leaves a deep band at the bottom, which is exactly where
+ * the sheet goes — so the panel costs the maze nothing. A side panel likewise
+ * only shrinks the maze once the maze is wide enough to reach it, which on a
+ * desktop or a landscape phone it never is.
+ */
 function layoutCanvas(): void {
     const canvas = gameState.canvas;
     if (!canvas) return;
     const panel = document.getElementById('editor-panel');
     lastLayoutKey = `${window.innerWidth}x${window.innerHeight}:${panelOpen}`;
+
     const dock = currentDock();
     panel?.classList.toggle('ed-dock-side',   dock === 'side');
     panel?.classList.toggle('ed-dock-bottom', dock === 'bottom');
-    const reserveX = panelOpen && dock === 'side' ? PANEL_WIDTH + 24 : 0;
-    const reserveY = panelOpen && dock === 'bottom' ? bottomDockHeight() + 8 : 0;
-    const availW = Math.max(160, window.innerWidth  - reserveX);
-    const availH = Math.max(160, window.innerHeight - reserveY);
-    const scale = Math.min(availW / 560, availH / 720);
+
+    const viewW = window.innerWidth;
+    const viewH = window.innerHeight;
+    let scale: number;
+    let reserveX = 0;
+    let reserveY = 0;
+    let panelHeight = 0;
+
+    if (!panelOpen) {
+        scale = Math.min(viewW / 560, viewH / 720);
+    } else if (dock === 'side') {
+        reserveX = PANEL_WIDTH + PANEL_GAP;
+        scale = Math.min((viewW - reserveX) / 560, viewH / 720);
+        panelHeight = viewH - PANEL_GAP;
+    } else {
+        // Fit the maze to the full width first; the sheet takes what is left.
+        const fitWidth = viewW / 560;
+        const leftover = viewH - 720 * fitWidth;
+        if (leftover >= BOTTOM_DOCK_MIN) {
+            scale = fitWidth;
+            panelHeight = leftover;
+        } else {
+            panelHeight = BOTTOM_DOCK_MIN;
+            scale = Math.min(fitWidth, (viewH - panelHeight) / 720);
+        }
+        reserveY = panelHeight;
+    }
+
     canvas.style.width        = `${560 * scale}px`;
     canvas.style.height       = `${720 * scale}px`;
     canvas.style.marginRight  = `${reserveX}px`;
     canvas.style.marginBottom = `${reserveY}px`;
+
+    if (panel) {
+        panel.style.height = dock === 'bottom' && panelOpen ? `${panelHeight}px` : '';
+        panel.classList.toggle('ed-compact', panelHeight > 0 && panelHeight < COMPACT_PANEL_HEIGHT);
+    }
 }
 
 /**
@@ -1041,13 +1075,13 @@ const PANEL_CSS = `
 #editor-panel.ed-collapsed { display: none; }
 /* Docked to the right on a wide or landscape screen … */
 #editor-panel.ed-dock-side {
-    top: 8px; right: 8px; bottom: 8px; width: ${PANEL_WIDTH}px;
+    top: ${PANEL_GAP / 2}px; right: ${PANEL_GAP / 2}px; bottom: ${PANEL_GAP / 2}px;
+    width: ${PANEL_WIDTH}px;
     border-radius: 10px;
 }
 /* … and to the bottom edge on a portrait phone. */
 #editor-panel.ed-dock-bottom {
-    left: 0; right: 0; bottom: 0;
-    height: clamp(${BOTTOM_DOCK_MIN}px, ${BOTTOM_DOCK_VH}vh, ${BOTTOM_DOCK_MAX}px);
+    left: 0; right: 0; bottom: 0; height: ${BOTTOM_DOCK_MIN}px;
     border-radius: 12px 12px 0 0; border-width: 2px 0 0;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
@@ -1129,15 +1163,14 @@ const PANEL_CSS = `
     display: flex; align-items: center; justify-content: center;
 }
 #editor-panel .ed-objects .ed-count { margin: 0; font-size: 10px; }
-@media (max-height: 720px) {
-    #editor-panel button, #editor-panel label,
-    #editor-panel input, #editor-panel select { min-height: 40px; }
-    #ed-tabs button { min-height: 36px; font-size: 9px; padding: 2px; }
-    #ed-tabs button .ed-tab-icon { font-size: 13px; }
-    #editor-panel { gap: 5px; padding: 6px; }
-    #editor-panel .ed-grid { gap: 4px; }
-    #editor-panel .ed-tab-panel { gap: 4px; }
-}
+/* A short panel — a landscape phone, or a sheet under a tall maze. */
+#editor-panel.ed-compact button, #editor-panel.ed-compact label,
+#editor-panel.ed-compact input, #editor-panel.ed-compact select { min-height: 40px; }
+#editor-panel.ed-compact #ed-tabs button { min-height: 36px; font-size: 9px; padding: 2px; }
+#editor-panel.ed-compact #ed-tabs button .ed-tab-icon { font-size: 13px; }
+#editor-panel.ed-compact { gap: 5px; padding: 6px; }
+#editor-panel.ed-compact .ed-grid { gap: 4px; }
+#editor-panel.ed-compact .ed-tab-panel { gap: 4px; }
 #editor-panel label {
     display: flex; align-items: center; gap: 8px; cursor: pointer;
     font-size: 13px; min-height: 44px;
