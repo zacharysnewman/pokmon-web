@@ -537,6 +537,56 @@ function drawTunnelOverlay(ctx: CanvasRenderingContext2D, state: EditorState): v
     ctx.restore();
 }
 
+/**
+ * A row band the HUD covers. Darkening does nothing on an already-black maze,
+ * so these read as blocked the way a no-go area usually does: a light wash,
+ * diagonal hatching and a label naming what covers them.
+ */
+function drawReservedBand(
+    ctx: CanvasRenderingContext2D,
+    rowStart: number,
+    rowCount: number,
+    label: string,
+): void {
+    if (rowCount <= 0) return;
+    const top = rowStart * unit;
+    const height = rowCount * unit;
+    const width = gridW * unit;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, top, width, height);
+    ctx.clip();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(0, top, width, height);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = -height; x < width; x += 9) {
+        ctx.moveTo(x, top + height);
+        ctx.lineTo(x + height, top);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = `bold ${Math.round(unit * 0.5)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const text = `${label} — NOT PAINTABLE`;
+    const metrics = ctx.measureText(text);
+    const cx = width / 2;
+    const cy = top + height / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(cx - metrics.width / 2 - 4, cy - unit * 0.34, metrics.width + 8, unit * 0.68);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillText(text, cx, cy);
+    ctx.restore();
+}
+
 function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): void {
     const lv = state.level;
 
@@ -598,7 +648,7 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     // Grid lines — kept faint so they read as guides, not maze content
     if (state.prefs.showGrid) {
         ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.42)';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         for (let x = 1; x < gridW; x++) {
@@ -614,22 +664,26 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     }
 
     // Reserved rows: the HUD covers these in play, so they cannot be painted
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, gridW * unit, EDIT_MIN_Y * unit);
-    ctx.fillRect(0, (EDIT_MAX_Y + 1) * unit, gridW * unit, (gridH - 1 - EDIT_MAX_Y) * unit);
-    ctx.restore();
+    drawReservedBand(ctx, 0, EDIT_MIN_Y, 'SCORE');
+    drawReservedBand(ctx, EDIT_MAX_Y + 1, gridH - 1 - EDIT_MAX_Y, 'LIVES');
 
-    // Map bounds — everything paintable lives inside this rectangle
+    // Map bounds — the full grid, including the rows the HUD covers, which
+    // objects can still use even though tiles cannot.
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, gridW * unit - 2, gridH * unit - 2);
+    // The paintable area inside it
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
     ctx.strokeRect(
-        1,
-        EDIT_MIN_Y * unit + 1,
-        gridW * unit - 2,
-        (EDIT_MAX_Y - EDIT_MIN_Y + 1) * unit - 2,
+        0.5,
+        EDIT_MIN_Y * unit + 0.5,
+        gridW * unit - 1,
+        (EDIT_MAX_Y - EDIT_MIN_Y + 1) * unit - 1,
     );
+    ctx.setLineDash([]);
     ctx.restore();
 
     // Movable objects — scatter targets first so spawns draw on top
@@ -712,11 +766,28 @@ function importLevelJSON(onLoad: (level: LevelData) => void): void {
 
 // ── Layout: keep the maze clear of the panel ──────────────────────────────────
 
-const PANEL_WIDTH = 260;
+const PANEL_WIDTH = 268;
+const BOTTOM_DOCK_VH = 50;
+const BOTTOM_DOCK_MIN = 300;
+const BOTTOM_DOCK_MAX = 420;
+
+/** Height of the bottom sheet — kept in step with the CSS clamp below. */
+function bottomDockHeight(): number {
+    const vh = Math.round(window.innerHeight * (BOTTOM_DOCK_VH / 100));
+    return Math.min(BOTTOM_DOCK_MAX, Math.max(BOTTOM_DOCK_MIN, vh));
+}
 let panelOpen = true;
 
-function isNarrowViewport(): boolean {
-    return window.innerWidth < 880;
+type PanelDock = 'side' | 'bottom';
+
+/**
+ * Where the panel lives. A wide screen gets a side panel; so does a landscape
+ * phone, where a bottom sheet would be only a couple of rows tall. Portrait
+ * phones get the bottom sheet.
+ */
+function currentDock(): PanelDock {
+    if (window.innerWidth >= 880) return 'side';
+    return window.innerWidth > window.innerHeight ? 'side' : 'bottom';
 }
 
 let lastLayoutKey = '';
@@ -725,10 +796,13 @@ let lastLayoutKey = '';
 function layoutCanvas(): void {
     const canvas = gameState.canvas;
     if (!canvas) return;
+    const panel = document.getElementById('editor-panel');
     lastLayoutKey = `${window.innerWidth}x${window.innerHeight}:${panelOpen}`;
-    const narrow = isNarrowViewport();
-    const reserveX = panelOpen && !narrow ? PANEL_WIDTH + 24 : 0;
-    const reserveY = panelOpen && narrow  ? Math.round(window.innerHeight * 0.45) : 0;
+    const dock = currentDock();
+    panel?.classList.toggle('ed-dock-side',   dock === 'side');
+    panel?.classList.toggle('ed-dock-bottom', dock === 'bottom');
+    const reserveX = panelOpen && dock === 'side' ? PANEL_WIDTH + 24 : 0;
+    const reserveY = panelOpen && dock === 'bottom' ? bottomDockHeight() + 8 : 0;
     const availW = Math.max(160, window.innerWidth  - reserveX);
     const availH = Math.max(160, window.innerHeight - reserveY);
     const scale = Math.min(availW / 560, availH / 720);
@@ -927,6 +1001,23 @@ function runTestGame(state: EditorState, level: LevelData): void {
 
 // ── Panel UI ──────────────────────────────────────────────────────────────────
 
+/** Sections of the panel. One is visible at a time, so nothing has to scroll. */
+const TABS: Array<{ id: string; icon: string; label: string; title: string }> = [
+    { id: 'paint',   icon: '▦',  label: 'Paint',   title: 'Tile palette and paint tools' },
+    { id: 'brush',   icon: '⌗',  label: 'Brush',   title: 'Brush size and mirroring' },
+    { id: 'objects', icon: '✥',  label: 'Objects', title: 'Spawns and scatter targets' },
+    { id: 'zones',   icon: '⊕',  label: 'Zones',   title: 'Red zones, slow tiles, tunnel row' },
+    { id: 'level',   icon: '✔',  label: 'Level',   title: 'Name, tile set, budgets, validation' },
+    { id: 'more',    icon: '☰',  label: 'More',    title: 'Library, files and shortcuts' },
+];
+
+/** The tab a tool lives in, so selecting it elsewhere brings it into view. */
+const TOOL_TAB: Record<EditorTool, string> = {
+    paint: 'paint', erase: 'paint', fill: 'paint',
+    move: 'objects',
+    red_zone: 'zones', slow_zone: 'zones', tunnel_config: 'zones',
+};
+
 const TOOL_BUTTONS: Array<{ tool: EditorTool; id: string }> = [
     { tool: 'paint',         id: 'ed-tool-paint'   },
     { tool: 'erase',         id: 'ed-tool-erase'   },
@@ -939,90 +1030,160 @@ const TOOL_BUTTONS: Array<{ tool: EditorTool; id: string }> = [
 
 const PANEL_CSS = `
 #editor-panel, #ed-toggle, #ed-toast { font-family: monospace; }
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
 #editor-panel {
-    position: fixed; top: 8px; right: 8px; width: ${PANEL_WIDTH}px;
-    background: rgba(0,0,0,0.94); color: #eee;
-    padding: 12px; border: 2px solid #666; border-radius: 10px;
-    z-index: 100; font-size: 15px;
-    display: flex; flex-direction: column; gap: 10px;
-    max-height: calc(100vh - 16px); overflow-y: auto;
-    touch-action: pan-y; overscroll-behavior: contain;
+    position: fixed; background: rgba(0,0,0,0.94); color: #eee;
+    border: 2px solid #666; z-index: 100; font-size: 15px;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 8px; touch-action: pan-y; overscroll-behavior: contain;
 }
 #editor-panel.ed-collapsed { display: none; }
-#editor-panel h2 { font-size: 18px; color: #ff0; margin: 0; }
-#editor-panel .ed-head { display: flex; align-items: center; gap: 8px; }
-#editor-panel .ed-head #ed-info { flex: 1; text-align: right; overflow: hidden; white-space: nowrap; }
-#editor-panel .ed-icon-btn { min-width: 44px; justify-content: center; padding: 4px; font-size: 16px; }
-#editor-panel .ed-sec { border: 1px solid #333; border-radius: 8px; padding: 0 8px 8px; }
-#editor-panel .ed-sec > summary {
-    cursor: pointer; list-style: none; padding: 10px 2px; min-height: 24px;
-    font-size: 12px; color: #bbb; text-transform: uppercase; letter-spacing: 1px;
+/* Docked to the right on a wide or landscape screen … */
+#editor-panel.ed-dock-side {
+    top: 8px; right: 8px; bottom: 8px; width: ${PANEL_WIDTH}px;
+    border-radius: 10px;
 }
-#editor-panel .ed-sec > summary::-webkit-details-marker { display: none; }
-#editor-panel .ed-sec > summary::before { content: '▸ '; color: #777; }
-#editor-panel .ed-sec[open] > summary::before { content: '▾ '; }
-#editor-panel .ed-sec[open] > summary { border-bottom: 1px solid #333; margin-bottom: 8px; }
+/* … and to the bottom edge on a portrait phone. */
+#editor-panel.ed-dock-bottom {
+    left: 0; right: 0; bottom: 0;
+    height: clamp(${BOTTOM_DOCK_MIN}px, ${BOTTOM_DOCK_VH}vh, ${BOTTOM_DOCK_MAX}px);
+    border-radius: 12px 12px 0 0; border-width: 2px 0 0;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+/* ── Always-visible action bar ─────────────────────────────────────────── */
+#editor-panel .ed-bar { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+#editor-panel .ed-bar #ed-info {
+    flex: 1; min-width: 0; font-size: 12px; color: #999;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+#editor-panel .ed-icon-btn {
+    min-width: 44px; width: 44px; justify-content: center;
+    padding: 4px; font-size: 17px;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────── */
+#ed-tabs { display: flex; gap: 4px; flex-shrink: 0; }
+#ed-tabs button {
+    flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px;
+    justify-content: center; align-items: center; text-align: center;
+    padding: 4px 2px; min-height: 46px; font-size: 10px; letter-spacing: 0;
+    color: #bbb; background: #191919;
+}
+#ed-tabs button .ed-tab-icon { font-size: 16px; line-height: 1.1; }
+#ed-tabs button[aria-selected="true"] {
+    background: #3a3a12; border-color: #ff0; color: #ff0;
+}
+
+/* ── Tab bodies ────────────────────────────────────────────────────────── */
+#editor-panel .ed-body { flex: 1; min-height: 0; display: flex; }
+#editor-panel > #ed-test-btn { flex-shrink: 0; justify-content: center; }
+#editor-panel .ed-tab-panel {
+    flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px;
+    overflow-y: auto; overscroll-behavior: contain;
+}
+#editor-panel .ed-tab-panel[hidden] { display: none; }
+
+/* Controls pack across the width instead of stacking one per row. */
+#editor-panel .ed-grid {
+    display: grid; gap: 5px;
+    grid-template-columns: repeat(auto-fit, minmax(var(--col, 92px), 1fr));
+}
 #editor-panel .ed-stack { display: flex; flex-direction: column; gap: 6px; }
-#editor-panel .ed-label-sm { font-size: 12px; color: #999; margin-top: 4px; }
-#editor-panel .ed-num { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #ccc; }
-#editor-panel input[type=number] {
-    background: #111; color: #ff0; border: 1px solid #666; border-radius: 6px;
-    padding: 8px 6px; font-family: monospace; font-size: 16px; min-height: 44px;
-    width: 100%; box-sizing: border-box;
+#editor-panel .ed-label-sm {
+    font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px;
 }
-#editor-panel #ed-mirror-modes button { flex: 1 1 60px; min-width: 60px; padding: 6px 4px; font-size: 13px; }
-#editor-panel .ed-row { display: flex; gap: 6px; flex-wrap: wrap; }
-#editor-panel .ed-row > * { flex: 1 1 0; min-width: 64px; }
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
 #editor-panel button {
     background: #222; color: #eee; border: 1px solid #666;
-    border-radius: 6px; padding: 8px; cursor: pointer; min-height: 44px;
-    font-family: monospace; font-size: 14px; text-align: left;
-    touch-action: manipulation; display: flex; align-items: center; gap: 8px;
+    border-radius: 6px; padding: 6px 8px; cursor: pointer; min-height: 44px;
+    font-family: monospace; font-size: 13px; text-align: left;
+    touch-action: manipulation; display: flex; align-items: center; gap: 6px;
 }
-#editor-panel .ed-row button { justify-content: center; text-align: center; }
+#editor-panel .ed-grid button { justify-content: flex-start; }
+#editor-panel .ed-grid.ed-centred button { justify-content: center; text-align: center; }
 #editor-panel button[aria-pressed="true"], #editor-panel [role="radio"][aria-checked="true"] {
     background: #3a3a12; border-color: #ff0; color: #ff0;
 }
 #editor-panel button:hover { border-color: #999; }
+#editor-panel button:disabled { opacity: 0.45; cursor: default; }
 #editor-panel :focus-visible { outline: 3px solid #ff0; outline-offset: 2px; }
-#editor-panel .ed-count { margin-left: auto; font-size: 12px; color: #9a9a9a; }
+#editor-panel .ed-count { margin-left: auto; font-size: 11px; color: #9a9a9a; }
 #editor-panel button[aria-pressed="true"] .ed-count,
 #editor-panel [aria-checked="true"] .ed-count { color: #ffd; }
 #editor-panel .ed-count.ed-full { color: #ffcc44; }
 #editor-panel .ed-count.ed-over { color: #ff6666; }
 #editor-panel .ed-swatch-box {
-    width: 22px; height: 22px; border-radius: 3px; border: 1px solid #777; flex-shrink: 0;
+    width: 18px; height: 18px; border-radius: 3px; border: 1px solid #777; flex-shrink: 0;
 }
-#editor-panel .ed-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+#editor-panel .ed-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+#editor-panel .ed-objects button {
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 0; padding: 2px; text-align: center;
+}
+#editor-panel .ed-badge {
+    font-size: 15px; font-weight: bold; line-height: 1.1;
+    border: 1px solid; border-radius: 50%; width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+}
+#editor-panel .ed-objects .ed-count { margin: 0; font-size: 10px; }
+@media (max-height: 720px) {
+    #editor-panel button, #editor-panel label,
+    #editor-panel input, #editor-panel select { min-height: 40px; }
+    #ed-tabs button { min-height: 36px; font-size: 9px; padding: 2px; }
+    #ed-tabs button .ed-tab-icon { font-size: 13px; }
+    #editor-panel { gap: 5px; padding: 6px; }
+    #editor-panel .ed-grid { gap: 4px; }
+    #editor-panel .ed-tab-panel { gap: 4px; }
+}
 #editor-panel label {
-    display: flex; align-items: center; gap: 10px; cursor: pointer;
-    font-size: 14px; min-height: 44px;
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 13px; min-height: 44px;
 }
-#editor-panel input[type=checkbox] { width: 22px; height: 22px; cursor: pointer; accent-color: #ff0; flex-shrink: 0; }
+#editor-panel input[type=checkbox] { width: 20px; height: 20px; cursor: pointer; accent-color: #ff0; flex-shrink: 0; }
 #editor-panel input[type=text], #editor-panel select {
     background: #111; color: #ff0; border: 1px solid #666;
-    border-radius: 6px; padding: 10px 8px; font-family: monospace;
+    border-radius: 6px; padding: 8px; font-family: monospace;
     font-size: 16px; width: 100%; box-sizing: border-box; min-height: 44px;
 }
-#editor-panel .ed-desc { font-size: 12px; color: #999; margin: 6px 0 0; line-height: 1.4; }
-#editor-panel .ed-budgets { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-#editor-panel .ed-budget { font-size: 12px; color: #ccc; }
-#editor-panel .ed-budget-top { display: flex; justify-content: space-between; gap: 8px; }
-#editor-panel .ed-bar { height: 5px; background: #222; border-radius: 3px; margin-top: 3px; overflow: hidden; }
-#editor-panel .ed-bar > span { display: block; height: 100%; background: #4a8; width: 0; }
-#editor-panel .ed-budget.ed-full .ed-bar > span { background: #ffcc44; }
-#editor-panel .ed-budget.ed-over .ed-bar > span { background: #ff6666; }
-#ed-validate-result { font-size: 12px; max-height: 140px; overflow-y: auto; line-height: 1.45; }
+#editor-panel .ed-desc { font-size: 11px; color: #999; margin: 0; line-height: 1.4; }
+
+/* ── Budgets ───────────────────────────────────────────────────────────── */
+#editor-panel .ed-budgets {
+    list-style: none; margin: 0; padding: 0;
+    flex: 1 1 0; min-height: 18px; overflow-y: auto;
+    display: grid; gap: 4px 10px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+#editor-panel .ed-budget { font-size: 11px; color: #ccc; }
+#editor-panel .ed-budget-top { line-height: 1.5; }
+#editor-panel .ed-budget-top { display: flex; justify-content: space-between; gap: 6px; }
+#editor-panel .ed-budget-bar { height: 3px; background: #222; border-radius: 2px; margin-top: 2px; overflow: hidden; }
+#editor-panel .ed-budget-bar > span { display: block; height: 100%; background: #4a8; width: 0; }
+#editor-panel .ed-budget.ed-full .ed-budget-bar > span { background: #ffcc44; }
+#editor-panel .ed-budget.ed-over .ed-budget-bar > span { background: #ff6666; }
+
+/* ── Output areas — these may scroll; every control stays reachable ────── */
+#ed-validate-result {
+    font-size: 11px; line-height: 1.45;
+    flex: 0 1 auto; max-height: 84px; overflow-y: auto;
+}
 #ed-validate-result .ed-error   { color: #ff8080; }
 #ed-validate-result .ed-warning { color: #ffcc44; }
 #ed-validate-result .ed-ok      { color: #7f7; }
-#ed-test-btn { background: #063; color: #cfc; border-color: #4a4; font-weight: bold; justify-content: center; }
-#ed-info { font-size: 12px; color: #999; min-height: 1.2em; }
-#editor-panel .ed-keys { font-size: 12px; color: #aaa; line-height: 1.7; margin: 0; padding-left: 0; list-style: none; }
+#ed-test-btn { background: #063; color: #cfc; border-color: #4a4; font-weight: bold; }
+#editor-panel .ed-keys {
+    font-size: 11px; color: #aaa; line-height: 1.8; margin: 0; padding: 0; list-style: none;
+    flex: 1 1 0; min-height: 20px; overflow-y: auto;
+}
 #editor-panel .ed-keys kbd {
     background: #222; border: 1px solid #555; border-radius: 3px;
     padding: 1px 5px; color: #ff0; font-family: monospace;
 }
+
+/* ── Floating opener + toast ───────────────────────────────────────────── */
 #ed-toggle {
     position: fixed; right: 12px; bottom: 12px; z-index: 101;
     width: 52px; height: 52px; border-radius: 10px;
@@ -1031,28 +1192,16 @@ const PANEL_CSS = `
 }
 #ed-toggle:focus-visible { outline: 3px solid #ff0; outline-offset: 2px; }
 #ed-toast {
-    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+    position: fixed; left: 50%; top: 12px; transform: translateX(-50%);
     background: rgba(20,20,20,0.96); color: #ffd; border: 1px solid #888;
-    border-radius: 8px; padding: 12px 16px; font-size: 14px; max-width: 90vw;
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; max-width: 90vw;
     text-align: center; z-index: 300; opacity: 0; pointer-events: none;
     transition: opacity 0.18s ease;
 }
 #ed-toast.ed-toast-show { opacity: 1; }
-@media (max-width: 879px) {
-    #editor-panel {
-        top: auto; right: 0; left: 0; bottom: 0; width: auto;
-        max-height: 45vh; border-radius: 12px 12px 0 0; border-width: 2px 0 0;
-        padding-bottom: max(12px, env(safe-area-inset-bottom));
-    }
-    #editor-panel .ed-sec { padding-bottom: 10px; }
-    #editor-panel #ed-palette { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-    #editor-panel #ed-markers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-    #editor-panel #ed-markers button { font-size: 13px; padding: 6px; }
-    #editor-panel #ed-markers .ed-count { font-size: 11px; }
-}
 @media (pointer: coarse) {
     #editor-panel button, #editor-panel label,
-    #editor-panel input[type=text], #editor-panel select { min-height: 48px; }
+    #editor-panel input[type=text], #editor-panel select { min-height: 46px; }
 }
 @media (prefers-reduced-motion: reduce) {
     #ed-toast { transition: none; }
@@ -1087,111 +1236,89 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
     panel.innerHTML = `
         <style>${PANEL_CSS}</style>
 
-        <div class="ed-head">
-            <h2>✏ Editor</h2>
-            <div id="ed-info" role="status" aria-live="off"></div>
+        <div class="ed-bar">
             <button id="ed-hide" class="ed-icon-btn" aria-label="Hide editor tools" title="Hide panel (H)">✕</button>
+            <button id="ed-undo" class="ed-icon-btn" aria-label="Undo" title="Undo (Ctrl+Z)">↩</button>
+            <button id="ed-redo" class="ed-icon-btn" aria-label="Redo" title="Redo (Ctrl+Y)">↪</button>
+            <button id="ed-grid" class="ed-icon-btn" aria-pressed="true" aria-label="Show grid" title="Show grid (G)">#</button>
+            <div id="ed-info" role="status" aria-live="off"></div>
         </div>
 
-        <div class="ed-stack">
-            <label for="ed-name">Level name</label>
-            <input type="text" id="ed-name" maxlength="32" placeholder="Level name…">
-        </div>
+        <div id="ed-tabs" role="tablist" aria-label="Editor sections"></div>
 
-        <details class="ed-sec" open>
-            <summary>Tile set</summary>
-            <select id="ed-tileset" aria-label="Tile set"></select>
-            <p class="ed-desc" id="ed-tileset-desc"></p>
-            <ul class="ed-budgets" id="ed-budgets" aria-label="Tile budgets"></ul>
-        </details>
+        <div class="ed-body">
+            <section id="ed-panel-paint" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-paint">
+                <div class="ed-grid ed-centred" role="group" aria-label="Tool" style="--col: 74px">
+                    <button id="ed-tool-paint" aria-pressed="false" title="Paint the selected tile (B)">✏ Paint</button>
+                    <button id="ed-tool-erase" aria-pressed="false" title="Set tiles back to empty (E)">◻ Erase</button>
+                    <button id="ed-tool-fill"  aria-pressed="false" title="Flood-fill matching tiles (F)">⬛ Fill</button>
+                </div>
+                <div class="ed-grid" id="ed-palette" role="radiogroup" aria-label="Tile type" style="--col: 98px"></div>
+            </section>
 
-        <details class="ed-sec" open>
-            <summary>Tiles</summary>
-            <div class="ed-stack" id="ed-palette" role="radiogroup" aria-label="Tile type"></div>
-        </details>
+            <section id="ed-panel-brush" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-brush" hidden>
+                <div class="ed-label-sm">Brush size</div>
+                <div class="ed-grid ed-centred" id="ed-brush-sizes" role="group" aria-label="Brush size" style="--col: 56px"></div>
+                <div class="ed-label-sm" id="ed-mirror-label">Mirror painting</div>
+                <div class="ed-grid ed-centred" id="ed-mirror-modes" role="radiogroup" aria-labelledby="ed-mirror-label" style="--col: 56px"></div>
+            </section>
 
-        <details class="ed-sec" open>
-            <summary>Brush</summary>
-            <div class="ed-row" role="group" aria-label="Tool">
-                <button id="ed-tool-paint" aria-pressed="false" title="Paint the selected tile (B)">✏ Paint</button>
-                <button id="ed-tool-erase" aria-pressed="false" title="Set tiles back to empty (E)">◻ Erase</button>
-                <button id="ed-tool-fill"  aria-pressed="false" title="Flood-fill matching tiles (F)">⬛ Fill</button>
-            </div>
-            <div class="ed-row" role="group" aria-label="Brush size" id="ed-brush-sizes"></div>
-            <div class="ed-label-sm" id="ed-mirror-label">Mirror painting</div>
-            <div class="ed-row" role="radiogroup" aria-labelledby="ed-mirror-label" id="ed-mirror-modes"></div>
-        </details>
+            <section id="ed-panel-objects" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-objects" hidden>
+                <div class="ed-grid" style="--col: 120px">
+                    <button id="ed-tool-move" aria-pressed="false" title="Drag any object on the maze (M)">✥ Move</button>
+                    <label><input type="checkbox" id="ed-half"> Half-tile</label>
+                </div>
+                <div class="ed-grid ed-objects" id="ed-markers" role="group" aria-label="Movable objects" style="--col: 58px"></div>
+            </section>
 
-        <details class="ed-sec" open>
-            <summary>Objects — one of each</summary>
-            <button id="ed-tool-move" aria-pressed="false" title="Drag any object on the maze (M)">✥ Move objects</button>
-            <div class="ed-stack" id="ed-markers" role="group" aria-label="Movable objects"></div>
-            <label><input type="checkbox" id="ed-half"> Drop on half-tile (x.5)</label>
-        </details>
-
-        <details class="ed-sec">
-            <summary>Zones</summary>
-            <div class="ed-stack">
-                <button id="ed-tool-redzone" aria-pressed="false" title="Toggle no-turn-up junction tiles (R)">
-                    ⊕ Red zone<span class="ed-count" id="ed-rz-count"></span>
-                </button>
-                <button id="ed-tool-slowzone" aria-pressed="false" title="Toggle tiles where enemies crawl (S)">
-                    ⌁ Slow tiles<span class="ed-count" id="ed-slow-count"></span>
-                </button>
-                <button id="ed-tool-tunnel" aria-pressed="false" title="Click a row to make it the warp tunnel (T)">
-                    ~ Tunnel row<span class="ed-count" id="ed-tunnel-row"></span>
-                </button>
+            <section id="ed-panel-zones" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-zones" hidden>
+                <div class="ed-grid" style="--col: 116px">
+                    <button id="ed-tool-redzone" aria-pressed="false" title="Toggle no-turn-up junction tiles (R)">
+                        ⊕ Red zone<span class="ed-count" id="ed-rz-count"></span>
+                    </button>
+                    <button id="ed-tool-slowzone" aria-pressed="false" title="Toggle tiles where enemies crawl (S)">
+                        ⌁ Slow tiles<span class="ed-count" id="ed-slow-count"></span>
+                    </button>
+                    <button id="ed-tool-tunnel" aria-pressed="false" title="Click a row to make it the warp tunnel (T)">
+                        ~ Tunnel row<span class="ed-count" id="ed-tunnel-row"></span>
+                    </button>
+                </div>
                 <p class="ed-desc" id="ed-tunnel-desc"></p>
-            </div>
-        </details>
+            </section>
 
-        <details class="ed-sec" open>
-            <summary>View &amp; history</summary>
-            <label><input type="checkbox" id="ed-grid"> Show grid</label>
-            <div class="ed-row">
-                <button id="ed-undo" title="Undo (Ctrl+Z)">↩ Undo</button>
-                <button id="ed-redo" title="Redo (Ctrl+Y)">↪ Redo</button>
-            </div>
-        </details>
+            <section id="ed-panel-level" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-level" hidden>
+                <div class="ed-grid" style="--col: 116px">
+                    <input type="text" id="ed-name" maxlength="32" placeholder="Level name…" aria-label="Level name">
+                    <select id="ed-tileset" aria-label="Tile set"></select>
+                </div>
+                <button id="ed-validate" style="justify-content:center">✔ Validate</button>
+                <div id="ed-validate-result" role="status" aria-live="polite"></div>
+                <p class="ed-desc" id="ed-tileset-desc"></p>
+                <ul class="ed-budgets" id="ed-budgets" aria-label="Tile budgets"></ul>
+            </section>
 
-        <div class="ed-stack">
-            <button id="ed-validate">✔ Validate</button>
-            <div id="ed-validate-result" role="status" aria-live="polite"></div>
-            <button id="ed-test-btn">▶ Test level</button>
-        </div>
-
-        <details class="ed-sec" open>
-            <summary>Library</summary>
-            <div class="ed-stack">
-                <button id="ed-save-lib">💾 Save to library</button>
-                <button id="ed-open-lib">📂 My maps</button>
-            </div>
-        </details>
-
-        <details class="ed-sec">
-            <summary>File</summary>
-            <div class="ed-stack">
-                <div class="ed-row">
+            <section id="ed-panel-more" class="ed-tab-panel" role="tabpanel" aria-labelledby="ed-tab-more" hidden>
+                <div class="ed-grid" style="--col: 116px">
+                    <button id="ed-save-lib">💾 Save to library</button>
+                    <button id="ed-open-lib">📂 My maps</button>
                     <button id="ed-export">⬇ Export</button>
                     <button id="ed-import">⬆ Import</button>
+                    <button id="ed-reset">↺ Reset to Classic</button>
                 </div>
-                <button id="ed-reset">↺ Reset to Classic</button>
-            </div>
-        </details>
+                <ul class="ed-keys">
+                    <li><kbd>1</kbd>–<kbd>5</kbd> pick a tile</li>
+                    <li><kbd>B</kbd> paint · <kbd>E</kbd> erase · <kbd>F</kbd> fill</li>
+                    <li><kbd>M</kbd> move objects · arrows nudge</li>
+                    <li><kbd>R</kbd> red zone · <kbd>S</kbd> slow tiles · <kbd>T</kbd> tunnel row</li>
+                    <li><kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>X</kbd> cycle mirror</li>
+                    <li><kbd>G</kbd> grid · <kbd>H</kbd> hide panel</li>
+                    <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</li>
+                    <li><kbd>Esc</kbd> drop the held object</li>
+                </ul>
+            </section>
+        </div>
 
-        <details class="ed-sec">
-            <summary>Keyboard shortcuts</summary>
-            <ul class="ed-keys">
-                <li><kbd>1</kbd>–<kbd>5</kbd> pick a tile</li>
-                <li><kbd>B</kbd> paint · <kbd>E</kbd> erase · <kbd>F</kbd> fill</li>
-                <li><kbd>M</kbd> move objects · arrows nudge</li>
-                <li><kbd>R</kbd> red zone · <kbd>S</kbd> slow tiles · <kbd>T</kbd> tunnel row</li>
-                <li><kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>X</kbd> cycle mirror</li>
-                <li><kbd>G</kbd> grid · <kbd>H</kbd> hide panel</li>
-                <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</li>
-                <li><kbd>Esc</kbd> drop the held object</li>
-            </ul>
-        </details>
+        <button id="ed-test-btn">▶ Test level</button>
     `;
     if (!panelEl) document.body.appendChild(panel);
 
@@ -1215,6 +1342,22 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         undo:           el<HTMLButtonElement>('ed-undo'),
         redo:           el<HTMLButtonElement>('ed-redo'),
     };
+
+    // Tab strip
+    const tabStrip = el('ed-tabs');
+    for (const tab of TABS) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = `ed-tab-${tab.id}`;
+        button.dataset.tab = tab.id;
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-selected', 'false');
+        button.setAttribute('aria-controls', `ed-panel-${tab.id}`);
+        button.title = tab.title;
+        button.innerHTML = `<span class="ed-tab-icon" aria-hidden="true">${tab.icon}</span><span>${tab.label}</span>`;
+        button.onclick = () => setTab(state, tab.id);
+        tabStrip.appendChild(button);
+    }
 
     // Level name
     ui.name.value = state.level.name;
@@ -1244,7 +1387,7 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         li.dataset.key = row.key;
         li.innerHTML = `
             <div class="ed-budget-top"><span>${row.label}</span><span class="ed-budget-val"></span></div>
-            <div class="ed-bar" aria-hidden="true"><span></span></div>`;
+            <div class="ed-budget-bar" aria-hidden="true"><span></span></div>`;
         ui.budgets.appendChild(li);
     }
 
@@ -1292,15 +1435,15 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         const button = document.createElement('button');
         button.type = 'button';
         button.id = `ed-marker-${marker.id}`;
-        button.title = marker.hint;
+        button.title = `${marker.label} — ${marker.hint}`;
         button.setAttribute('aria-pressed', 'false');
+        button.setAttribute('aria-label', marker.label);
         button.innerHTML = `
-            <span class="ed-dot" style="background:${marker.color}"></span>
-            <span>${marker.label}</span>
+            <span class="ed-badge" style="color:${marker.color}; border-color:${marker.color}">${marker.badge}</span>
             <span class="ed-count" data-marker="${marker.id}"></span>`;
         button.onclick = () => {
             state.armedMarker = state.armedMarker === marker.id ? null : marker.id;
-            if (state.armedMarker) state.selectedTool = 'move';
+            if (state.armedMarker) selectTool(state, 'move');
             state.uiDirty = true;
         };
         ui.markers.appendChild(button);
@@ -1332,12 +1475,7 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         savePrefs(state.prefs);
     };
 
-    const grid = el<HTMLInputElement>('ed-grid');
-    grid.checked = state.prefs.showGrid;
-    grid.onchange = () => {
-        state.prefs.showGrid = grid.checked;
-        savePrefs(state.prefs);
-    };
+    el<HTMLButtonElement>('ed-grid').onclick = () => toggleGrid(state);
 
     // Undo / redo
     ui.undo.onclick = () => { if (undo(state)) syncToRenderer(state); };
@@ -1412,9 +1550,29 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
     return panel;
 }
 
+function toggleGrid(state: EditorState): void {
+    state.prefs.showGrid = !state.prefs.showGrid;
+    savePrefs(state.prefs);
+    state.uiDirty = true;
+}
+
+/** Show one section. The others are hidden, so the visible one need not scroll. */
+function setTab(state: EditorState, id: string): void {
+    state.prefs.activeTab = TABS.some(t => t.id === id) ? id : TABS[0].id;
+    savePrefs(state.prefs);
+    state.uiDirty = true;
+}
+
+/** Bring a tool's section into view when it is chosen from elsewhere. */
+function revealToolTab(state: EditorState, tool: EditorTool): void {
+    const tab = TOOL_TAB[tool];
+    if (tab && tab !== state.prefs.activeTab) setTab(state, tab);
+}
+
 function selectTile(state: EditorState, value: TileValue): void {
     state.selectedTileValue = value;
     state.selectedTool = 'paint';
+    revealToolTab(state, 'paint');
     state.uiDirty = true;
 }
 
@@ -1428,6 +1586,7 @@ function setMirrorMode(state: EditorState, mode: MirrorMode): void {
 function selectTool(state: EditorState, tool: EditorTool): void {
     state.selectedTool = tool;
     if (tool !== 'move') state.draggingMarker = null;
+    revealToolTab(state, tool);
     state.uiDirty = true;
 }
 
@@ -1446,7 +1605,7 @@ function refreshReadouts(state: EditorState): void {
         const used = state.usage[row.key];
         const budget = tileSet.budgets[row.key];
         li.querySelector('.ed-budget-val')!.textContent = formatBudget(used, budget);
-        const bar = li.querySelector<HTMLElement>('.ed-bar > span')!;
+        const bar = li.querySelector<HTMLElement>('.ed-budget-bar > span')!;
         const ratio = isInfinite(budget) ? 0 : Math.min(1, budget === 0 ? 1 : used / budget);
         bar.style.width = `${Math.round(ratio * 100)}%`;
         li.classList.toggle('ed-full', !isInfinite(budget) && used === budget);
@@ -1494,6 +1653,15 @@ function refreshReadouts(state: EditorState): void {
     el('ed-tunnel-desc').textContent =
         'Cyan boxes mark the two tiles that wrap to the other side. Amber tiles are '
         + 'slow tiles — paint them anywhere enemies should crawl.';
+
+    // Tabs
+    for (const tab of TABS) {
+        const active = tab.id === state.prefs.activeTab;
+        document.getElementById(`ed-tab-${tab.id}`)?.setAttribute('aria-selected', String(active));
+        const panel = document.getElementById(`ed-panel-${tab.id}`);
+        if (panel) panel.hidden = !active;
+    }
+    el('ed-grid').setAttribute('aria-pressed', String(state.prefs.showGrid));
 
     // History
     ui.undo.disabled = state.undoStack.length === 0;
@@ -1655,11 +1823,7 @@ function attachKeyboardShortcuts(state: EditorState): void {
             case 'r': selectTool(state, 'red_zone');  break;
             case 's': selectTool(state, 'slow_zone'); break;
             case 't': selectTool(state, 'tunnel_config'); break;
-            case 'g':
-                state.prefs.showGrid = !state.prefs.showGrid;
-                el<HTMLInputElement>('ed-grid').checked = state.prefs.showGrid;
-                savePrefs(state.prefs);
-                break;
+            case 'g': toggleGrid(state); break;
             case 'x':
                 setMirrorMode(state, nextMirrorMode(state.prefs.mirrorMode));
                 break;
