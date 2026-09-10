@@ -160,19 +160,40 @@ export function markerById(id: MarkerKindId): MarkerKind {
 }
 
 /**
- * The marker occupying a tile, if any. Markers are single objects, so this is
- * how the move tool decides what the user grabbed. Spawn markers win over
+ * The tiles a movable object sits on. A half-tile position (e.g. x = 13.5)
+ * straddles two columns, so it occupies both — which is what it looks like on
+ * the canvas, and what decides whether two objects collide.
+ */
+export function markerTiles(pos: { x: number; y: number }): Array<{ x: number; y: number }> {
+    const xs = [...new Set([Math.floor(pos.x), Math.round(pos.x)])];
+    const ys = [...new Set([Math.floor(pos.y), Math.round(pos.y)])];
+    return xs.flatMap(x => ys.map(y => ({ x, y })));
+}
+
+export function markerOccupies(pos: { x: number; y: number }, x: number, y: number): boolean {
+    return markerTiles(pos).some(t => t.x === x && t.y === y);
+}
+
+/** True when two objects would share a tile — objects are one to a tile. */
+export function markersCollide(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+    return markerTiles(a).some(t => markerOccupies(b, t.x, t.y));
+}
+
+/**
+ * The marker occupying a tile, if any: what the move tool grabs, and what
+ * blocks another object from being dropped there. Spawn markers win over
  * scatter targets when they overlap.
  */
-export function markerAtTile(level: LevelData, x: number, y: number): MarkerKind | null {
+export function markerAtTile(
+    level: LevelData,
+    x: number,
+    y: number,
+    exclude?: MarkerKindId,
+): MarkerKind | null {
     for (const group of ['spawn', 'scatter'] as const) {
         for (const m of MARKER_KINDS) {
-            if (m.group !== group) continue;
-            const p = m.get(level);
-            // Half-tile positions (e.g. x = 13.5) straddle two columns; accept both.
-            const hitX = Math.floor(p.x) === x || Math.round(p.x) === x;
-            const hitY = Math.floor(p.y) === y || Math.round(p.y) === y;
-            if (hitX && hitY) return m;
+            if (m.group !== group || m.id === exclude) continue;
+            if (markerOccupies(m.get(level), x, y)) return m;
         }
     }
     return null;
@@ -207,6 +228,14 @@ export const ZONE_KINDS: readonly {
 
 export function zoneKindById(id: ZoneKindId): (typeof ZONE_KINDS)[number] {
     return ZONE_KINDS.find(z => z.id === id)!;
+}
+
+/** The single zone on a tile, if any — zones are mutually exclusive. */
+export function zoneAtTile(level: LevelData, x: number, y: number): ZoneKindId | null {
+    for (const zone of ZONE_KINDS) {
+        if (zone.tiles(level).some(t => t.x === x && t.y === y)) return zone.id;
+    }
+    return null;
 }
 
 /** Count everything a tile set budgets, from a level's actual contents. */

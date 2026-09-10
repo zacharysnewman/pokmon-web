@@ -7,6 +7,7 @@ import {
     countUsage,
     isInfinite,
     MARKER_KINDS,
+    markersCollide,
     type TileSet,
 } from './TileSet';
 
@@ -178,17 +179,21 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         );
     }
 
-    // 12. Movable objects sharing a tile — legal, but almost always a mistake
-    const spawnMarkers = MARKER_KINDS.filter(m => m.group === 'spawn');
-    const seen = new Map<string, string>();
-    for (const marker of spawnMarkers) {
-        const pos = marker.get(level);
-        const key = `${pos.x},${pos.y}`;
-        const other = seen.get(key);
-        if (other) {
-            warnings.push(`${marker.label} and ${other} start on the same tile (${key})`);
-        } else {
-            seen.set(key, marker.label);
+    // 12. One zone to a tile
+    const redKeys = new Set(level.redZoneTiles.map(t => `${t.x},${t.y}`));
+    const doubleZoned = level.tunnelSlowTiles.filter(t => redKeys.has(`${t.x},${t.y}`)).length;
+    if (doubleZoned > 0) {
+        warnings.push(`${doubleZoned} tile(s) are marked as both a red zone and a slow tile`);
+    }
+
+    // 13. One movable object to a tile
+    for (let i = 0; i < MARKER_KINDS.length; i++) {
+        for (let j = i + 1; j < MARKER_KINDS.length; j++) {
+            const a = MARKER_KINDS[i];
+            const b = MARKER_KINDS[j];
+            if (markersCollide(a.get(level), b.get(level))) {
+                warnings.push(`${a.label} and ${b.label} share a tile`);
+            }
         }
     }
 

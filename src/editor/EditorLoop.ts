@@ -29,6 +29,7 @@ import {
     remainingOf,
     tileKindOfValue,
     ZONE_KINDS,
+    zoneAtTile,
     zoneKindById,
     type BudgetKey,
     type MarkerKindId,
@@ -255,11 +256,25 @@ function markerDropPos(state: EditorState, cell: { x: number; y: number }): { x:
     return { x: cell.x + (state.prefs.halfTileX ? 0.5 : 0), y: cell.y };
 }
 
-function moveMarker(state: EditorState, id: MarkerKindId, cell: { x: number; y: number }): boolean {
+function moveMarker(
+    state: EditorState,
+    id: MarkerKindId,
+    cell: { x: number; y: number },
+    notify = true,
+): boolean {
     const marker = markerById(id);
     const next = markerDropPos(state, cell);
     const current = marker.get(state.level);
     if (current.x === next.x && current.y === next.y) return false;
+
+    // One object per tile. Silent while dragging, so sweeping across an
+    // occupied tile does not spam the toast.
+    const occupant = markerAtTile(state.level, cell.x, cell.y, id);
+    if (occupant) {
+        if (notify) showToast(`${occupant.label} is already on that tile`);
+        return false;
+    }
+
     marker.set(state.level, next);
     return true;
 }
@@ -284,6 +299,8 @@ function toggleZone(
         } else {
             if (idx >= 0) continue;
             if (remainingOf(tileSet, state.usage, zone) <= 0) { blocked = true; continue; }
+            // A tile carries at most one zone, so the new one displaces any other.
+            clearOtherZones(state, zone, x, y);
             list.push({ x, y });
             state.usage[zone]++;
             changed = true;
@@ -291,6 +308,19 @@ function toggleZone(
     }
     if (blocked) budgetToast(state, zone);
     return changed;
+}
+
+/** Drop any zone other than `keep` from a tile — zones are one to a tile. */
+function clearOtherZones(state: EditorState, keep: ZoneKindId, x: number, y: number): void {
+    for (const other of ZONE_KINDS) {
+        if (other.id === keep) continue;
+        const list = other.tiles(state.level);
+        const idx = list.findIndex(t => t.x === x && t.y === y);
+        if (idx >= 0) {
+            list.splice(idx, 1);
+            state.usage[other.id]--;
+        }
+    }
 }
 
 /** The zone a zone-painting tool edits. */
@@ -323,6 +353,11 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): bool
             const grabbed = markerAtTile(state.level, x, y);
             if (grabbed) {
                 // Pick it up where it stands — dragging moves it from here.
+                // With one object to a tile, holding something else and
+                // clicking here cannot be a placement, so say what happened.
+                if (state.armedMarker && state.armedMarker !== grabbed.id) {
+                    showToast(`${grabbed.label} is on that tile — picked it up instead`);
+                }
                 state.draggingMarker = grabbed.id;
                 state.armedMarker = grabbed.id;
                 state.uiDirty = true;
@@ -361,7 +396,9 @@ function applyToolDrag(state: EditorState, cell: { x: number; y: number }): bool
         case 'erase':
             return paintCells(state, brushCells(state, cell), TILE_EMPTY as TileValue);
         case 'move':
-            return state.draggingMarker ? moveMarker(state, state.draggingMarker, cell) : false;
+            return state.draggingMarker
+                ? moveMarker(state, state.draggingMarker, cell, false)
+                : false;
         case 'tunnel_config': {
             if (state.level.tunnelRow === y) return false;
             state.level.tunnelRow = y;
@@ -1472,9 +1509,14 @@ function updateHoverInfo(state: EditorState): void {
         ui.info.textContent = '';
         return;
     }
-    const kind = tileKindOfValue(state.level.tiles[hovered.y][hovered.x]);
-    const suffix = isReservedRow(hovered.y) ? ' · reserved' : '';
-    ui.info.textContent = `${hovered.x}, ${hovered.y} · ${kind.label}${suffix}`;
+    const parts = [`${hovered.x}, ${hovered.y}`];
+    parts.push(tileKindOfValue(state.level.tiles[hovered.y][hovered.x]).label);
+    const zone = zoneAtTile(state.level, hovered.x, hovered.y);
+    if (zone) parts.push(zoneKindById(zone).label);
+    const object = markerAtTile(state.level, hovered.x, hovered.y);
+    if (object) parts.push(object.label);
+    if (isReservedRow(hovered.y)) parts.push('reserved');
+    ui.info.textContent = parts.join(' · ');
 }
 
 function runValidation(state: EditorState): { valid: boolean } {
@@ -1568,6 +1610,13 @@ function nudgeArmedMarker(state: EditorState, dx: number, dy: number): void {
         y: Math.min(gridH - 1, Math.max(0, pos.y + dy)),
     };
     if (next.x === pos.x && next.y === pos.y) return;
+
+    const occupant = markerAtTile(state.level, Math.floor(next.x), Math.floor(next.y), marker.id);
+    if (occupant) {
+        showToast(`${occupant.label} is already on that tile`);
+        return;
+    }
+
     beginStroke(state);
     marker.set(state.level, next);
     noteChange(state);

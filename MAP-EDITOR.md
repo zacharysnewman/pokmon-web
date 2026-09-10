@@ -18,6 +18,28 @@ On load the editor restores the last auto-saved session. If no autosave exists i
 
 ## Features
 
+### What a tile can hold
+
+A level is three independent layers. Within a layer, one thing per tile — the
+layers never mix.
+
+| Layer | Contents | Rule |
+|---|---|---|
+| **Tiles** (`tiles[y][x]`) | Wall, Empty, Dot, Power, Ghost door | Exactly one value per tile. Painting replaces what was there. |
+| **Zones** (coordinate lists) | Red zone, Slow tile | At most one zone per tile. Painting one displaces the other. |
+| **Objects** (coordinates) | Player, 4 ghost starts, fruit, 4 scatter targets | One object per tile. A drop onto an occupied tile is refused. |
+
+Zones and objects sit *on top of* a tile, so a dot can be a red zone, and a
+ghost can start on a slow tile — the built-in level itself puts two of its four
+red zones on dot tiles. What cannot happen is two of the same layer on one tile.
+
+An object on a half-tile (`x.5`) straddles two columns and holds both, which is
+how it is drawn and how collisions are judged.
+
+Clicking an object always picks it up, even while holding another one — with one
+object to a tile, a click there could never have been a placement, so the editor
+says which object it grabbed instead.
+
 ### The tile set (budgets)
 
 Every placeable thing has a budget, so a custom map can be held to the same
@@ -151,13 +173,14 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 4 | All enemy spawns must be on walkable tiles |
 | 5 | Fruit spawn should be on a walkable tile (warning only) |
 | 6 | Tunnel row must be in bounds |
-| 7 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
-| 8 | Level name should not be empty (warning only) |
-| 9 | Nothing may exceed the current tile set's budget |
-| 10 | Ghost door tiles and power pellets should exist (warnings only) |
-| 11 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
-| 12 | Slow tiles stranded on walls (warning only) |
-| 13 | Two objects starting on the same tile (warning only) |
+| 7 | Slow tiles must not sit on walls, where no enemy can reach them (warning only) |
+| 8 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
+| 9 | Level name should not be empty (warning only) |
+| 10 | Nothing may exceed the current tile set's budget |
+| 11 | Ghost door tiles and power pellets should exist (warnings only) |
+| 12 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
+| 13 | A tile marked as both a red zone and a slow tile (warning only) |
+| 14 | Two objects sharing a tile (warning only) |
 
 **▶ Test level** runs the same checks first and refuses to launch on errors.
 
@@ -370,6 +393,7 @@ interface LevelData {
 | Brush sizes and 4-way mirror painting | ✅ Complete |
 | Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
 | Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
+| One zone per tile, one object per tile | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |
