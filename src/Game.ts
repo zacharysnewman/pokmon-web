@@ -1322,9 +1322,27 @@ function startScreenLoop(): void {
     window.requestAnimationFrame(startScreenLoop);
 }
 
+/**
+ * The area actually visible to the player.
+ *
+ * `window.innerWidth/innerHeight` describe the layout viewport, which on mobile
+ * can be larger than what is on screen — while the URL bar slides, or the page
+ * is pinched — and sizing the canvas from it renders the maze wider than the
+ * screen, clipped at both edges. `visualViewport` tracks the visible area, so
+ * prefer it and fall back only where it is unavailable.
+ */
+export function viewportSize(): { width: number; height: number } {
+    const visual = window.visualViewport;
+    return {
+        width:  Math.min(window.innerWidth,  visual?.width  ?? window.innerWidth),
+        height: Math.min(window.innerHeight, visual?.height ?? window.innerHeight),
+    };
+}
+
 function resizeCanvas(): void {
     const canvas = gameState.canvas;
-    const scale = Math.min(window.innerWidth / 560, window.innerHeight / 720);
+    const { width, height } = viewportSize();
+    const scale = Math.min(width / 560, height / 720);
     canvas.style.width  = `${560 * scale}px`;
     canvas.style.height = `${720 * scale}px`;
 }
@@ -1336,6 +1354,9 @@ window.onload = function () {
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+    // iOS often reports URL-bar changes only through the visual viewport.
+    window.visualViewport?.addEventListener('resize', resizeCanvas);
+    window.visualViewport?.addEventListener('scroll', resizeCanvas);
 
     const params = new URLSearchParams(window.location.search);
 

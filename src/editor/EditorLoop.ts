@@ -2,7 +2,7 @@ import { unit, gridW, gridH } from '../constants';
 import { gameState } from '../game-state';
 import { Levels } from '../static/Levels';
 import { Draw } from '../static/Draw';
-import { startTestGame } from '../Game';
+import { startTestGame, viewportSize } from '../Game';
 import type { LevelData, TileValue } from '../types';
 import { TILE_EMPTY, TILE_GHOST_DOOR } from '../tiles';
 import { validateLevel } from './Validate';
@@ -715,18 +715,35 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
 
 // ── rAF Loop ──────────────────────────────────────────────────────────────────
 
-function editorLoop(state: EditorState): void {
-    layoutCanvasIfNeeded();
-    Draw.level();
-    drawEditorOverlay(state, gameState.ctx);
+/**
+ * Generation token for the render loop. Starting a loop supersedes any earlier
+ * one, and stopping bumps the token so the running loop retires on its next
+ * frame — otherwise every play-test would leave another editor loop drawing
+ * over the game, one more with each round.
+ */
+let editorLoopId = 0;
 
-    if (state.uiDirty) {
-        refreshReadouts(state);
-        state.uiDirty = false;
-    }
-    updateHoverInfo(state);
+function startEditorLoop(state: EditorState): void {
+    const id = ++editorLoopId;
+    const frame = (): void => {
+        if (id !== editorLoopId) return;
+        layoutCanvasIfNeeded();
+        Draw.level();
+        drawEditorOverlay(state, gameState.ctx);
 
-    requestAnimationFrame(() => editorLoop(state));
+        if (state.uiDirty) {
+            refreshReadouts(state);
+            state.uiDirty = false;
+        }
+        updateHoverInfo(state);
+
+        requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+}
+
+function stopEditorLoop(): void {
+    editorLoopId++;
 }
 
 // ── Save / Load ───────────────────────────────────────────────────────────────
@@ -802,14 +819,13 @@ function layoutCanvas(): void {
     const canvas = gameState.canvas;
     if (!canvas) return;
     const panel = document.getElementById('editor-panel');
-    lastLayoutKey = `${window.innerWidth}x${window.innerHeight}:${panelOpen}`;
+    lastLayoutKey = layoutKey();
 
     const dock = currentDock();
     panel?.classList.toggle('ed-dock-side',   dock === 'side');
     panel?.classList.toggle('ed-dock-bottom', dock === 'bottom');
 
-    const viewW = window.innerWidth;
-    const viewH = window.innerHeight;
+    const { width: viewW, height: viewH } = viewportSize();
     let scale: number;
     let reserveX = 0;
     let reserveY = 0;
@@ -860,8 +876,13 @@ function layoutCanvas(): void {
  * mobile browsers do not reliably fire `resize` when the URL bar slides away
  * or the viewport settles after load.
  */
+function layoutKey(): string {
+    const { width, height } = viewportSize();
+    return `${width}x${height}:${panelOpen}`;
+}
+
 function layoutCanvasIfNeeded(): void {
-    if (`${window.innerWidth}x${window.innerHeight}:${panelOpen}` === lastLayoutKey) return;
+    if (layoutKey() === lastLayoutKey) return;
     layoutCanvas();
 }
 
@@ -1022,6 +1043,7 @@ function openLibraryModal(
 // ── Play-test ─────────────────────────────────────────────────────────────────
 
 function runTestGame(state: EditorState, level: LevelData): void {
+    stopEditorLoop();
     const panel = document.getElementById('editor-panel');
     const toggle = document.getElementById('ed-toggle');
     panel?.remove();
@@ -1038,7 +1060,7 @@ function runTestGame(state: EditorState, level: LevelData): void {
         if (toggle) document.body.appendChild(toggle);
         setPanelOpen(wasOpen);
         syncToRenderer(state);
-        requestAnimationFrame(() => editorLoop(state));
+        startEditorLoop(state);
     });
 }
 
@@ -1945,9 +1967,13 @@ export function startEditorMode(): void {
     setPanelOpen(true);
     window.addEventListener('resize', layoutCanvas);
     window.addEventListener('orientationchange', layoutCanvas);
+    // Keeps working while a play-test owns the canvas, when the editor's own
+    // render loop is stopped.
+    window.visualViewport?.addEventListener('resize', layoutCanvas);
+    window.visualViewport?.addEventListener('scroll', layoutCanvas);
 
     attachCanvasEvents(state);
     attachKeyboardShortcuts(state);
 
-    requestAnimationFrame(() => editorLoop(state));
+    startEditorLoop(state);
 }
