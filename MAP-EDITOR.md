@@ -49,9 +49,12 @@ the game logic are untouched.
 
 | Tile set | Dots | Power | Ghost doors | Red zones | Slow tiles | Walls / Empty |
 |---|---|---|---|---|---|---|
-| **Classic** (default) | 240 | 4 | 2 | 4 | 12 | ∞ |
-| **Extended** | 360 | 8 | 4 | 8 | 24 | ∞ |
+| **Classic** (default) | 240 | 4 | 2 | ∞ | ∞ | ∞ |
+| **Extended** | 360 | 8 | 4 | ∞ | ∞ | ∞ |
 | **Sandbox** | ∞ | ∞ | ∞ | ∞ | ∞ | ∞ |
+
+Zones and tunnel rows are a design choice rather than a stock of pieces, so
+they are counted but never capped.
 
 - Classic's numbers are read from the built-in map at startup, so they cannot
   drift out of sync with it.
@@ -97,7 +100,14 @@ so the saved JSON is unchanged.
 | **Move objects** | Drag spawns and scatter targets | `M` |
 | **Red zone** | Click/drag to toggle junctions where ghosts can't turn up | `R` |
 | **Slow tiles** | Click/drag to toggle tiles where enemies crawl | `S` |
-| **Tunnel row** | Click any tile — its row becomes the warp tunnel row | `T` |
+| **Tunnel rows** | Click or drag down the maze to paint rows that wrap left to right | `T` |
+
+**Erase** clears whatever is on a tile — the tile itself *and* any zone on it.
+Tapping a marked tile with its own zone tool also removes just that zone.
+
+**Tunnel rows** are painted, not moved: a level holds a list of them
+(`tunnelRows`), so a maze can wrap on as many rows as it likes. Click a row to
+add it, click it again to remove it, or drag down the maze to paint a run.
 
 **Slow tiles** are the warp-tunnel mouths, where enemies move at a crawl. They
 are per-tile, like red zones: paint them anywhere, in any shape, not just on the
@@ -173,7 +183,7 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 3 | Player spawn must be on a walkable tile (value > 0) |
 | 4 | All enemy spawns must be on walkable tiles |
 | 5 | Fruit spawn should be on a walkable tile (warning only) |
-| 6 | Tunnel row must be in bounds |
+| 6 | Every tunnel row must be in bounds |
 | 7 | Slow tiles must not sit on walls, where no enemy can reach them (warning only) |
 | 8 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
 | 9 | Level name should not be empty (warning only) |
@@ -183,7 +193,14 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 13 | A tile marked as both a red zone and a slow tile (warning only) |
 | 14 | Two objects sharing a tile (warning only) |
 
-**▶ Test level** runs the same checks first and refuses to launch on errors.
+**✔ Validate** puts its verdict where it can be seen: a headline in the Level
+tab — green with the dot counts, or red with the number of problems — the detail
+listed beneath it, and a toast naming the first problem for whoever is looking
+at the maze rather than the panel.
+
+**▶ Test level** runs the same checks first and refuses to launch on errors,
+opening the Level tab and naming the first one rather than pointing vaguely at
+the panel.
 
 ---
 
@@ -247,7 +264,7 @@ Each entry shows:
     "orangeEnemy":  { "x": 15,   "y": 17 }
   },
   "fruitSpawn":       { "x": 13, "y": 20 },
-  "tunnelRow":        17,
+  "tunnelRows":       [17],
   "tunnelSlowTiles": [
     { "x": 0, "y": 17 }, { "x": 1, "y": 17 }, { "x": 2, "y": 17 },
     { "x": 3, "y": 17 }, { "x": 4, "y": 17 }, { "x": 5, "y": 17 },
@@ -271,7 +288,8 @@ Each entry shows:
 `enemyHouseDoor` is derived from the painted ghost-door tiles rather than placed
 separately, but it is still written out exactly as before.
 
-`tunnelSlowTiles` replaces the old `tunnelSlowColMax` / `tunnelSlowColMin` pair.
+`tunnelRows` replaces the old single `tunnelRow`, and `tunnelSlowTiles` replaces
+the older `tunnelSlowColMax` / `tunnelSlowColMin` pair.
 A level file carrying the old fields is converted on load
 (`src/editor/LevelMigrate.ts`) into the tiles those bounds covered, so nothing
 saved by an earlier version loses its slow zones.
@@ -435,7 +453,7 @@ interface LevelData {
         orangeEnemy:  { x: number; y: number };
     };
     fruitSpawn:       { x: number; y: number };
-    tunnelRow:        number;
+    tunnelRows:       number[];
     tunnelSlowTiles:  { x: number; y: number }[];
     redZoneTiles:     { x: number; y: number }[];
     enemyHouseDoor:   { x: number; y: number };
@@ -461,6 +479,8 @@ interface LevelData {
 | Brush sizes and 4-way mirror painting | ✅ Complete |
 | Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
 | Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
+| Paintable multi-row tunnels (`tunnelRows`) | ✅ Complete |
+| Erase clears zones as well as tiles | ✅ Complete |
 | One zone per tile, one object per tile | ✅ Complete |
 | Tabbed toolbar — every control reachable without scrolling | ✅ Complete |
 | Maze at full size, panel in the space it cannot use | ✅ Complete |

@@ -10,6 +10,7 @@ import type { LevelData } from '../types';
 interface LegacyLevel {
     tunnelSlowColMax?: number;
     tunnelSlowColMin?: number;
+    tunnelRow?: number;
 }
 
 /**
@@ -18,9 +19,16 @@ interface LegacyLevel {
  * exactly the slow tiles it had.
  */
 export function migrateLevel(level: LevelData): LevelData {
+    // A level used to carry a single tunnel row; now it carries a list.
+    if (!Array.isArray(level.tunnelRows)) {
+        const legacyRow = (level as unknown as LegacyLevel).tunnelRow;
+        level.tunnelRows = typeof legacyRow === 'number' ? [legacyRow] : [];
+    }
+    delete (level as unknown as LegacyLevel).tunnelRow;
+
     if (!Array.isArray(level.tunnelSlowTiles)) {
         const legacy = level as unknown as LegacyLevel;
-        const row = level.tunnelRow;
+        const row = level.tunnelRows[0];
         const tiles: Array<{ x: number; y: number }> = [];
         if (typeof row === 'number' && row >= 0 && row < gridH) {
             const max = typeof legacy.tunnelSlowColMax === 'number' ? legacy.tunnelSlowColMax : -1;

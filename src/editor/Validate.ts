@@ -82,9 +82,9 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         warnings.push(`Fruit spawn (${Math.round(fs.x)}, ${Math.round(fs.y)}) is on a wall`);
     }
 
-    // 6. Tunnel row in bounds
-    if (level.tunnelRow < 0 || level.tunnelRow >= gridH) {
-        errors.push(`Tunnel row ${level.tunnelRow} is out of bounds`);
+    // 6. Tunnel rows in bounds
+    for (const row of level.tunnelRows) {
+        if (row < 0 || row >= gridH) errors.push(`Tunnel row ${row} is out of bounds`);
     }
 
     // 6b. Slow tiles on walls do nothing — enemies can never stand there
@@ -114,8 +114,8 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         if (level.tiles[y][x] === TILE_WALL) continue;
         reachable.add(key);
 
-        // Tunnel wrapping on tunnel row
-        if (y === level.tunnelRow) {
+        // Tunnel wrapping on any tunnel row
+        if (level.tunnelRows.includes(y)) {
             if (x === 0)          queue.push({ x: gridW - 1, y });
             if (x === gridW - 1)  queue.push({ x: 0, y });
         }

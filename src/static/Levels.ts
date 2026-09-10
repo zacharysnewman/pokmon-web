@@ -40,6 +40,11 @@ export class Levels {
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ];
 
+    /** True where walking off either end of the row wraps to the other side. */
+    static isTunnelRow(level: LevelData, y: number): boolean {
+        return level.tunnelRows.includes(y);
+    }
+
     static levelSetup: TileValue[][] = [];
     static levelDynamic: TileValue[][] = [];
 
@@ -55,7 +60,7 @@ export class Levels {
             orangeEnemy: { x: 15,   y: 17 },
         },
         fruitSpawn:       { x: 13, y: 20 },
-        tunnelRow:        17,
+        tunnelRows:       [17],
         // The warp-tunnel mouths: row 17, columns 0-5 and 22-27. These are the
         // exact tiles the old tunnelSlowColMax/tunnelSlowColMin pair covered.
         tunnelSlowTiles: [
