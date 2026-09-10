@@ -231,8 +231,6 @@ function floodFill(state: EditorState, startX: number, startY: number): boolean 
 let isPainting = false;
 let zoneDragMode: 'add' | 'remove' | null = null;
 const zoneDragSeen = new Set<string>();
-let tunnelDragMode: 'add' | 'remove' | null = null;
-const tunnelDragSeen = new Set<number>();
 
 /** Snapshot taken at pointer-down, pushed onto the undo stack only if the stroke changes something. */
 let pendingUndo: LevelData | null = null;
@@ -341,21 +339,6 @@ function eraseCells(state: EditorState, cells: Array<{ x: number; y: number }>):
     return painted || zonesCleared;
 }
 
-/** Add or remove one tunnel row. Rows are painted like zones, not moved. */
-function toggleTunnelRow(state: EditorState, row: number, mode: 'add' | 'remove'): boolean {
-    const rows = state.level.tunnelRows;
-    const index = rows.indexOf(row);
-    if (mode === 'add') {
-        if (index >= 0) return false;
-        rows.push(row);
-        rows.sort((a, b) => a - b);
-    } else {
-        if (index < 0) return false;
-        rows.splice(index, 1);
-    }
-    return true;
-}
-
 /** The zone a zone-painting tool edits. */
 function zoneForTool(tool: EditorTool): ZoneKindId | null {
     if (tool === 'red_zone')  return 'red_zone';
@@ -366,7 +349,7 @@ function zoneForTool(tool: EditorTool): ZoneKindId | null {
 /** Tools that write into the grid; the move tool is exempt. */
 function toolWritesTiles(tool: EditorTool): boolean {
     return tool === 'paint' || tool === 'erase' || tool === 'fill'
-        || tool === 'red_zone' || tool === 'slow_zone' || tool === 'tunnel_config';
+        || tool === 'red_zone' || tool === 'slow_zone';
 }
 
 function applyToolDown(state: EditorState, cell: { x: number; y: number }): boolean {
@@ -403,12 +386,6 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): bool
             showToast('Pick an object in the Objects list, then tap the maze to place it');
             return false;
         }
-        case 'tunnel_config': {
-            tunnelDragMode = state.level.tunnelRows.includes(y) ? 'remove' : 'add';
-            tunnelDragSeen.clear();
-            tunnelDragSeen.add(y);
-            return toggleTunnelRow(state, y, tunnelDragMode);
-        }
         case 'red_zone':
         case 'slow_zone': {
             const zone = zoneForTool(state.selectedTool)!;
@@ -433,11 +410,6 @@ function applyToolDrag(state: EditorState, cell: { x: number; y: number }): bool
             return state.draggingMarker
                 ? moveMarker(state, state.draggingMarker, cell, false)
                 : false;
-        case 'tunnel_config': {
-            if (!tunnelDragMode || tunnelDragSeen.has(y)) return false;
-            tunnelDragSeen.add(y);
-            return toggleTunnelRow(state, y, tunnelDragMode);
-        }
         case 'red_zone':
         case 'slow_zone': {
             if (!zoneDragMode) return false;
@@ -532,24 +504,17 @@ function drawWrapArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, di
  * tile in it were special.
  */
 function drawTunnelOverlay(ctx: CanvasRenderingContext2D, state: EditorState): void {
-    for (const row of state.level.tunnelRows) {
-        if (row >= 0 && row < gridH) drawTunnelRow(ctx, state, row);
+    for (let row = 0; row < gridH; row++) {
+        if (Levels.wrapsAt(state.level, row)) drawTunnelRow(ctx, row);
     }
 }
 
-function drawTunnelRow(ctx: CanvasRenderingContext2D, state: EditorState, row: number): void {
+function drawTunnelRow(ctx: CanvasRenderingContext2D, row: number): void {
     const top = row * unit;
     const width = gridW * unit;
     const midY = top + unit / 2;
 
     ctx.save();
-
-    // While the tunnel tool is active, show the whole row — that is what a
-    // click is about to change.
-    if (state.selectedTool === 'tunnel_config') {
-        ctx.fillStyle = 'rgba(0,200,255,0.10)';
-        ctx.fillRect(0, top, width, unit);
-    }
 
     // The row itself, as a dashed centre line
     ctx.strokeStyle = 'rgba(0,216,255,0.5)';
@@ -1183,7 +1148,7 @@ const TABS: Array<{ id: string; icon: string; label: string; title: string }> = 
 const TOOL_TAB: Record<EditorTool, string> = {
     paint: 'paint', erase: 'paint', fill: 'paint',
     move: 'objects',
-    red_zone: 'zones', slow_zone: 'zones', tunnel_config: 'zones',
+    red_zone: 'zones', slow_zone: 'zones',
 };
 
 const TOOL_BUTTONS: Array<{ tool: EditorTool; id: string }> = [
@@ -1193,7 +1158,6 @@ const TOOL_BUTTONS: Array<{ tool: EditorTool; id: string }> = [
     { tool: 'move',          id: 'ed-tool-move'    },
     { tool: 'red_zone',      id: 'ed-tool-redzone'  },
     { tool: 'slow_zone',     id: 'ed-tool-slowzone' },
-    { tool: 'tunnel_config', id: 'ed-tool-tunnel'  },
 ];
 
 const PANEL_CSS = `
@@ -1464,9 +1428,6 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                     <button id="ed-tool-slowzone" aria-pressed="false" title="Paint tiles where enemies crawl — Erase clears them (S)">
                         ⌁ Slow tiles<span class="ed-count" id="ed-slow-count"></span>
                     </button>
-                    <button id="ed-tool-tunnel" aria-pressed="false" title="Paint rows that wrap left to right (T)">
-                        ~ Tunnel rows<span class="ed-count" id="ed-tunnel-row"></span>
-                    </button>
                 </div>
                 <p class="ed-desc" id="ed-tunnel-desc"></p>
             </section>
@@ -1494,7 +1455,7 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                     <li><kbd>1</kbd>–<kbd>5</kbd> pick a tile</li>
                     <li><kbd>B</kbd> paint · <kbd>E</kbd> erase · <kbd>F</kbd> fill</li>
                     <li><kbd>M</kbd> move objects · arrows nudge</li>
-                    <li><kbd>R</kbd> red zone · <kbd>S</kbd> slow tiles · <kbd>T</kbd> tunnel row</li>
+                    <li><kbd>R</kbd> red zone · <kbd>S</kbd> slow tiles</li>
                     <li><kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>X</kbd> cycle mirror</li>
                     <li><kbd>G</kbd> grid · <kbd>H</kbd> hide panel</li>
                     <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</li>
@@ -1833,14 +1794,16 @@ function refreshReadouts(state: EditorState): void {
     // Zones
     el('ed-rz-count').textContent   = formatBudget(state.usage.red_zone,  tileSet.budgets.red_zone);
     el('ed-slow-count').textContent = formatBudget(state.usage.slow_zone, tileSet.budgets.slow_zone);
-    const rows = state.level.tunnelRows;
-    el('ed-tunnel-row').textContent = rows.length === 1
-        ? `row ${rows[0]}`
-        : `${rows.length} rows`;
-    el('ed-tunnel-desc').textContent =
-        'Paint any number of tunnel rows — cyan boxes mark the tiles that wrap to '
-        + 'the other side. Amber tiles are slow tiles, where enemies crawl. Tap a '
-        + 'marked tile again to clear it, or use Erase.';
+    const wrapRows: number[] = [];
+    for (let row = 0; row < gridH; row++) {
+        if (Levels.wrapsAt(state.level, row)) wrapRows.push(row);
+    }
+    el('ed-tunnel-desc').textContent = (wrapRows.length === 0
+        ? 'Nothing wraps: no row is open at both edges. '
+        : `Wraps on row${wrapRows.length === 1 ? '' : 's'} ${wrapRows.join(', ')} — `
+            + 'a row wraps wherever both of its end tiles are walkable, so open an '
+            + 'edge to make one. ')
+        + 'Amber tiles are slow tiles. Tap a marked tile again to clear it, or use Erase.';
 
     // Tabs
     for (const tab of TABS) {
@@ -1869,7 +1832,6 @@ function toolSummary(state: EditorState): string {
             : 'Move objects';
         case 'red_zone':      return 'Red zone';
         case 'slow_zone':     return 'Slow tiles';
-        case 'tunnel_config': return 'Set tunnel row';
     }
 }
 
@@ -1940,8 +1902,6 @@ function attachCanvasEvents(state: EditorState): void {
         isPainting = true;
         zoneDragMode = null;
         zoneDragSeen.clear();
-        tunnelDragMode = null;
-        tunnelDragSeen.clear();
         beginStroke(state);
         if (applyToolDown(state, cell)) noteChange(state);
     }
@@ -2049,7 +2009,6 @@ function attachKeyboardShortcuts(state: EditorState): void {
             case 'm': selectTool(state, 'move');  break;
             case 'r': selectTool(state, 'red_zone');  break;
             case 's': selectTool(state, 'slow_zone'); break;
-            case 't': selectTool(state, 'tunnel_config'); break;
             case 'g': toggleGrid(state); break;
             case 'x':
                 setMirrorMode(state, nextMirrorMode(state.prefs.mirrorMode));

@@ -1,4 +1,5 @@
 import type { LevelData, TileValue } from '../types';
+import { TILE_WALL } from '../tiles';
 
 export class Levels {
     static level1: TileValue[][] = [
@@ -40,9 +41,17 @@ export class Levels {
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ];
 
-    /** True where walking off either end of the row wraps to the other side. */
-    static isTunnelRow(level: LevelData, y: number): boolean {
-        return level.tunnelRows.includes(y);
+    /**
+     * True where walking off either end of a row comes back on the other side.
+     *
+     * This is a property of the maze rather than something a level declares:
+     * the wrap needs a walkable tile at both ends of the row, and if either end
+     * is a wall there is nowhere to arrive.
+     */
+    static wrapsAt(level: LevelData, y: number): boolean {
+        const row = level.tiles[y];
+        if (!row) return false;
+        return row[0] > TILE_WALL && row[row.length - 1] > TILE_WALL;
     }
 
     static levelSetup: TileValue[][] = [];
@@ -60,7 +69,6 @@ export class Levels {
             orangeEnemy: { x: 15,   y: 17 },
         },
         fruitSpawn:       { x: 13, y: 20 },
-        tunnelRows:       [17],
         // The warp-tunnel mouths: row 17, columns 0-5 and 22-27. These are the
         // exact tiles the old tunnelSlowColMax/tunnelSlowColMin pair covered.
         tunnelSlowTiles: [

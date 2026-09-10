@@ -11,6 +11,7 @@ interface LegacyLevel {
     tunnelSlowColMax?: number;
     tunnelSlowColMin?: number;
     tunnelRow?: number;
+    tunnelRows?: number[];
 }
 
 /**
@@ -19,16 +20,19 @@ interface LegacyLevel {
  * exactly the slow tiles it had.
  */
 export function migrateLevel(level: LevelData): LevelData {
-    // A level used to carry a single tunnel row; now it carries a list.
-    if (!Array.isArray(level.tunnelRows)) {
-        const legacyRow = (level as unknown as LegacyLevel).tunnelRow;
-        level.tunnelRows = typeof legacyRow === 'number' ? [legacyRow] : [];
-    }
-    delete (level as unknown as LegacyLevel).tunnelRow;
+    // Levels used to declare where they wrapped, first as one row and then as a
+    // list. It is read from the tiles now: a row wraps when both of its end
+    // tiles are walkable, which is what the game always actually did.
+    const legacy = level as unknown as LegacyLevel;
+    const legacyRows = Array.isArray(legacy.tunnelRows)
+        ? legacy.tunnelRows
+        : typeof legacy.tunnelRow === 'number' ? [legacy.tunnelRow] : [];
+    delete legacy.tunnelRow;
+    delete legacy.tunnelRows;
 
     if (!Array.isArray(level.tunnelSlowTiles)) {
         const legacy = level as unknown as LegacyLevel;
-        const row = level.tunnelRows[0];
+        const row = legacyRows[0];
         const tiles: Array<{ x: number; y: number }> = [];
         if (typeof row === 'number' && row >= 0 && row < gridH) {
             const max = typeof legacy.tunnelSlowColMax === 'number' ? legacy.tunnelSlowColMax : -1;
