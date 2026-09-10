@@ -326,8 +326,14 @@ The maze only gives way when the leftover band cannot hold a row of controls
 Overlaying the panel would keep those at 100 % but hide half the maze behind
 it, which is worse for editing than a slightly smaller maze.
 
-The layout is re-checked each frame, because mobile browsers do not reliably
-fire `resize` when the URL bar slides away. **Hide** (`✕`, or `H`) collapses the
+Sizing measures the **visual viewport** — the area actually on screen — rather
+than `window.innerWidth/innerHeight`, which describe the layout viewport and on
+mobile can be larger than the screen while the URL bar slides or the page is
+pinched; measuring those renders the maze wider than the screen, clipped at both
+edges. The layout is re-checked each frame and on `visualViewport` resize and
+scroll, since iOS reports URL-bar changes only through those. It is skipped
+while a panel field has focus, so an on-screen keyboard does not resize the maze
+mid-word. **Hide** (`✕`, or `H`) collapses the
 panel to a floating ✏ button and gives the maze the whole screen.
 
 ## Accessibility
