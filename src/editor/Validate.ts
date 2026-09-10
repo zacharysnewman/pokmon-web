@@ -1,12 +1,22 @@
 import { gridW, gridH } from '../constants';
 import type { LevelData } from '../types';
 import { TILE_WALL, TILE_DOT, TILE_POWER } from '../tiles';
+import {
+    BUDGET_ROWS,
+    countUsage,
+    isInfinite,
+    MARKER_KINDS,
+    type TileSet,
+} from './TileSet';
 
 export interface ValidationResult {
     valid: boolean;
     errors: string[];
     warnings: string[];
+    /** Dots + power pellets — everything the player must eat. */
     dotCount: number;
+    smallDots: number;
+    powerDots: number;
 }
 
 function isWalkable(level: LevelData, x: number, y: number): boolean {
@@ -15,7 +25,7 @@ function isWalkable(level: LevelData, x: number, y: number): boolean {
     return tx >= 0 && tx < gridW && ty >= 0 && ty < gridH && level.tiles[ty][tx] > TILE_WALL;
 }
 
-export function validateLevel(level: LevelData): ValidationResult {
+export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -29,15 +39,20 @@ export function validateLevel(level: LevelData): ValidationResult {
             break;
         }
     }
-    if (errors.length > 0) return { valid: false, errors, warnings, dotCount: 0 };
+    if (errors.length > 0) {
+        return { valid: false, errors, warnings, dotCount: 0, smallDots: 0, powerDots: 0 };
+    }
 
     // 2. Count collectibles
-    let dotCount = 0;
+    let smallDots = 0;
+    let powerDots = 0;
     for (const row of level.tiles) {
         for (const t of row) {
-            if (t === TILE_DOT || t === TILE_POWER) dotCount++;
+            if (t === TILE_DOT)   smallDots++;
+            if (t === TILE_POWER) powerDots++;
         }
     }
+    const dotCount = smallDots + powerDots;
     if (dotCount === 0) errors.push('Level must contain at least one dot or power pellet');
 
     // 3. Player spawn must be on a walkable tile
@@ -114,5 +129,42 @@ export function validateLevel(level: LevelData): ValidationResult {
         warnings.push('Level has no name');
     }
 
-    return { valid: errors.length === 0, errors, warnings, dotCount };
+    // 9. Tile set budgets — an over-budget level is an editor-side error only,
+    //    the level still loads and plays fine.
+    const usage = countUsage(level);
+    if (tileSet) {
+        for (const { key, label } of BUDGET_ROWS) {
+            const budget = tileSet.budgets[key];
+            if (isInfinite(budget)) continue;
+            if (usage[key] > budget) {
+                errors.push(
+                    `${label}: ${usage[key]} placed, "${tileSet.name}" tile set allows ${budget}`,
+                );
+            }
+        }
+    }
+
+    // 10. Ghost house sanity
+    if (usage.door === 0) {
+        warnings.push('No ghost door tiles — ghosts will not have a gate to pass through');
+    }
+    if (powerDots === 0) {
+        warnings.push('No power pellets — ghosts can never be frightened');
+    }
+
+    // 11. Movable objects sharing a tile — legal, but almost always a mistake
+    const spawnMarkers = MARKER_KINDS.filter(m => m.group === 'spawn');
+    const seen = new Map<string, string>();
+    for (const marker of spawnMarkers) {
+        const pos = marker.get(level);
+        const key = `${pos.x},${pos.y}`;
+        const other = seen.get(key);
+        if (other) {
+            warnings.push(`${marker.label} and ${other} start on the same tile (${key})`);
+        } else {
+            seen.set(key, marker.label);
+        }
+    }
+
+    return { valid: errors.length === 0, errors, warnings, dotCount, smallDots, powerDots };
 }

@@ -1,5 +1,6 @@
 import { unit, gridW, gridH } from '../constants';
-import type { IGameObject, Direction, PlayerState } from '../types';
+import type { IGameObject, Direction, PlayerState, TileValue } from '../types';
+import { TILE_GHOST_DOOR } from '../tiles';
 import { gameState } from '../game-state';
 import { Levels } from './Levels';
 import { Stats } from './Stats';
@@ -45,15 +46,25 @@ export class Draw {
         Draw.rect('black', 0, 0, gameState.canvas.width, gameState.canvas.height);
     }
 
+    /**
+     * Grid the maze is drawn from. `levelSetup` holds whichever level is
+     * loaded — the built-in one, a custom level under test, or the level open
+     * in the editor — so walls always match what is actually being played.
+     */
+    private static wallGrid(): TileValue[][] {
+        return Levels.levelSetup.length > 0 ? Levels.levelSetup : Levels.level1;
+    }
+
     static walls(): void {
         const ctx = gameState.ctx;
+        const grid = Draw.wallGrid();
         ctx.beginPath();
         ctx.strokeStyle = 'blue';
         ctx.lineWidth = 3;
 
         for (let y = 0; y < gridH; y++) {
             for (let x = 0; x < gridW; x++) {
-                if (Levels.level1[y][x] === 0) {
+                if (grid[y][x] === 0) {
                     const drawWall = Draw.getWallType(x, y);
                     drawWall(x * unit, y * unit);
                 }
@@ -425,14 +436,15 @@ export class Draw {
     }
 
     static getWallType(x: number, y: number): WallDrawFn {
-        const left        = x - 1 > 0             ? Levels.level1[y][x - 1] > 0     : false;
-        const top         = y - 1 > 0             ? Levels.level1[y - 1][x] > 0     : false;
-        const right       = x + 1 < gridW         ? Levels.level1[y][x + 1] > 0     : false;
-        const bottom      = y + 1 < gridH         ? Levels.level1[y + 1][x] > 0     : false;
-        const topLeft     = y - 1 > 0 && x - 1 > 0       ? Levels.level1[y - 1][x - 1] > 0 : false;
-        const topRight    = y - 1 > 0 && x + 1 < gridW   ? Levels.level1[y - 1][x + 1] > 0 : false;
-        const bottomRight = y + 1 < gridH && x + 1 < gridW ? Levels.level1[y + 1][x + 1] > 0 : false;
-        const bottomLeft  = y + 1 < gridH && x - 1 > 0   ? Levels.level1[y + 1][x - 1] > 0 : false;
+        const grid = Draw.wallGrid();
+        const left        = x - 1 > 0             ? grid[y][x - 1] > 0     : false;
+        const top         = y - 1 > 0             ? grid[y - 1][x] > 0     : false;
+        const right       = x + 1 < gridW         ? grid[y][x + 1] > 0     : false;
+        const bottom      = y + 1 < gridH         ? grid[y + 1][x] > 0     : false;
+        const topLeft     = y - 1 > 0 && x - 1 > 0       ? grid[y - 1][x - 1] > 0 : false;
+        const topRight    = y - 1 > 0 && x + 1 < gridW   ? grid[y - 1][x + 1] > 0 : false;
+        const bottomRight = y + 1 < gridH && x + 1 < gridW ? grid[y + 1][x + 1] > 0 : false;
+        const bottomLeft  = y + 1 < gridH && x - 1 > 0   ? grid[y + 1][x - 1] > 0 : false;
 
         if ((left || right) && !(top || bottom))        return Draw.wallVertical;
         if ((top || bottom) && !(left || right))        return Draw.wallHorizontal;
@@ -490,14 +502,25 @@ export class Draw {
         ctx.arc(x + unit, y, unit / 2, 0.5 * Math.PI, Math.PI, false);
     }
 
+    // Draws the gate line across each run of ghost-door tiles, so a custom
+    // ghost house gets its gate wherever the door tiles were placed.
     static cageGate(): void {
         const ctx = gameState.ctx;
-        const x = 11 * unit;
-        const y = 16.5 * unit;
+        const grid = Draw.wallGrid();
         ctx.beginPath();
         ctx.strokeStyle = 'lightpink';
-        ctx.moveTo(x + unit + unit / 2, y - unit / 2);
-        ctx.lineTo(x + 4 * unit + unit / 2, y - unit / 2);
+        for (let y = 0; y < gridH; y++) {
+            let x = 0;
+            while (x < gridW) {
+                if (grid[y]?.[x] !== TILE_GHOST_DOOR) { x++; continue; }
+                let end = x;
+                while (end + 1 < gridW && grid[y][end + 1] === TILE_GHOST_DOOR) end++;
+                const lineY = (y + 1) * unit;
+                ctx.moveTo((x - 0.5) * unit, lineY);
+                ctx.lineTo((end + 1.5) * unit, lineY);
+                x = end + 1;
+            }
+        }
         ctx.stroke();
     }
 

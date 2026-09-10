@@ -6,6 +6,8 @@ export interface LibraryEntry {
     id: string;          // unique stable id (timestamp + random)
     savedAt: number;     // Date.now() when last saved
     level: LevelData;
+    /** Editor-side metadata: which tile set the level was authored under. */
+    tileSetId?: string;
 }
 
 function loadRaw(): LibraryEntry[] {
@@ -31,11 +33,11 @@ export function listLevels(): LibraryEntry[] {
 }
 
 /** Save or overwrite a level. Returns the entry's id. */
-export function saveLevel(level: LevelData, existingId?: string): string {
+export function saveLevel(level: LevelData, existingId?: string, tileSetId?: string): string {
     const entries = loadRaw();
     const id = existingId ?? `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const idx = entries.findIndex(e => e.id === id);
-    const entry: LibraryEntry = { id, savedAt: Date.now(), level };
+    const entry: LibraryEntry = { id, savedAt: Date.now(), level, tileSetId };
     if (idx >= 0) {
         entries[idx] = entry;
     } else {
