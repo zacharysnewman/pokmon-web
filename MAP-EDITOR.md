@@ -283,12 +283,20 @@ and one that changes:
 
 | Part | Contents |
 |---|---|
-| **Action bar** (always visible) | Hide · Undo · Redo · Grid · the hover readout |
+| **Action bar** (always visible) | Hide · Undo · Redo · Grid · a status line |
 | **Tab strip** | Paint · Brush · Objects · Zones · Level · More |
 | **Tab body** | Only the selected section — sized so it does not scroll |
 | **Test level** | Pinned below the body, reachable from every tab |
 
-Undo, redo and Test never move, so they work whichever section is open.
+Undo, redo and Test never move, so they work whichever section is open. The
+bar's buttons carry words wherever they fit — across a wide sheet, or wrapped
+onto a second row in a tall side panel — and fall back to icons with tooltips
+only in a short side panel. **Hide** (`⌄` / `›`) points the way the panel goes;
+**Grid** (`⊞`) toggles the tile grid.
+
+The status line says what a click on the maze would do right now — "Paint Dot",
+"Place Fruit", "Slow tiles" — and switches to the tile under the pointer while
+hovering, naming each layer on it.
 Choosing a tool from the keyboard brings its section forward: `S` opens Zones
 with Slow tiles selected, `3` opens Paint with Dot selected.
 

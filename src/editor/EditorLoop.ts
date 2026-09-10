@@ -843,6 +843,15 @@ function layoutCanvas(): void {
     if (panel) {
         panel.style.height = dock === 'bottom' && panelOpen ? `${panelHeight}px` : '';
         panel.classList.toggle('ed-compact', panelHeight > 0 && panelHeight < COMPACT_PANEL_HEIGHT);
+        // Words wherever they fit: across a wide sheet, or wrapped onto a second
+        // row in a side panel tall enough to spare it.
+        const panelWidth = dock === 'bottom' ? viewW : PANEL_WIDTH;
+        panel.classList.toggle(
+            'ed-labels',
+            panelWidth >= 340 || panelHeight >= COMPACT_PANEL_HEIGHT,
+        );
+        const hideGlyph = panel.querySelector('#ed-hide .ed-glyph');
+        if (hideGlyph) hideGlyph.textContent = dock === 'bottom' ? '⌄' : '›';
     }
 }
 
@@ -1087,15 +1096,19 @@ const PANEL_CSS = `
 }
 
 /* ── Always-visible action bar ─────────────────────────────────────────── */
-#editor-panel .ed-bar { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+#editor-panel .ed-bar { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 #editor-panel .ed-bar #ed-info {
     flex: 1; min-width: 0; font-size: 12px; color: #999;
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 #editor-panel .ed-icon-btn {
     min-width: 44px; width: 44px; justify-content: center;
-    padding: 4px; font-size: 17px;
+    padding: 4px; font-size: 17px; gap: 5px;
 }
+#editor-panel .ed-btn-label { display: none; font-size: 12px; }
+/* Wide enough for words: the bar labels itself rather than leaving bare icons. */
+#editor-panel.ed-labels .ed-icon-btn { width: auto; padding: 4px 10px; }
+#editor-panel.ed-labels .ed-btn-label { display: inline; }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────── */
 #ed-tabs { display: flex; gap: 4px; flex-shrink: 0; }
@@ -1270,10 +1283,18 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         <style>${PANEL_CSS}</style>
 
         <div class="ed-bar">
-            <button id="ed-hide" class="ed-icon-btn" aria-label="Hide editor tools" title="Hide panel (H)">✕</button>
-            <button id="ed-undo" class="ed-icon-btn" aria-label="Undo" title="Undo (Ctrl+Z)">↩</button>
-            <button id="ed-redo" class="ed-icon-btn" aria-label="Redo" title="Redo (Ctrl+Y)">↪</button>
-            <button id="ed-grid" class="ed-icon-btn" aria-pressed="true" aria-label="Show grid" title="Show grid (G)">#</button>
+            <button id="ed-hide" class="ed-icon-btn" aria-label="Hide the tools panel" title="Hide the tools panel (H)">
+                <span class="ed-glyph" aria-hidden="true">⌄</span><span class="ed-btn-label">Hide</span>
+            </button>
+            <button id="ed-undo" class="ed-icon-btn" aria-label="Undo" title="Undo (Ctrl+Z)">
+                <span class="ed-glyph" aria-hidden="true">↩</span><span class="ed-btn-label">Undo</span>
+            </button>
+            <button id="ed-redo" class="ed-icon-btn" aria-label="Redo" title="Redo (Ctrl+Y)">
+                <span class="ed-glyph" aria-hidden="true">↪</span><span class="ed-btn-label">Redo</span>
+            </button>
+            <button id="ed-grid" class="ed-icon-btn" aria-pressed="true" aria-label="Show the tile grid" title="Show the tile grid (G)">
+                <span class="ed-glyph" aria-hidden="true">⊞</span><span class="ed-btn-label">Grid</span>
+            </button>
             <div id="ed-info" role="status" aria-live="off"></div>
         </div>
 
@@ -1703,11 +1724,26 @@ function refreshReadouts(state: EditorState): void {
     ui.libCount.textContent = `📂 My maps (${listLevels().length})`;
 }
 
+/** What a click on the maze would do right now. */
+function toolSummary(state: EditorState): string {
+    switch (state.selectedTool) {
+        case 'paint': return `Paint ${tileKindOfValue(state.selectedTileValue).label}`;
+        case 'erase': return 'Erase';
+        case 'fill':  return `Fill ${tileKindOfValue(state.selectedTileValue).label}`;
+        case 'move':  return state.armedMarker
+            ? `Place ${markerById(state.armedMarker).label}`
+            : 'Move objects';
+        case 'red_zone':      return 'Red zone';
+        case 'slow_zone':     return 'Slow tiles';
+        case 'tunnel_config': return 'Set tunnel row';
+    }
+}
+
 function updateHoverInfo(state: EditorState): void {
     if (!ui) return;
     const hovered = state.hoveredCell;
     if (!hovered) {
-        ui.info.textContent = '';
+        ui.info.textContent = toolSummary(state);
         return;
     }
     const parts = [`${hovered.x}, ${hovered.y}`];
