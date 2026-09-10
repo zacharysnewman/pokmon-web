@@ -12,6 +12,8 @@ export interface EditorPrefs {
     brushSize: number;
     mirrorMode: MirrorMode;
     halfTileX: boolean;
+    /** Which panel section was last open. */
+    activeTab: string;
 }
 
 export function defaultPrefs(): EditorPrefs {
@@ -21,6 +23,7 @@ export function defaultPrefs(): EditorPrefs {
         brushSize: 1,
         mirrorMode: 'off',
         halfTileX: false,
+        activeTab: 'tiles',
     };
 }
 
@@ -33,6 +36,7 @@ export function loadPrefs(): EditorPrefs {
         if (typeof saved.tileSetId === 'string') prefs.tileSetId = saved.tileSetId;
         if (typeof saved.showGrid  === 'boolean') prefs.showGrid  = saved.showGrid;
         if (typeof saved.halfTileX === 'boolean') prefs.halfTileX = saved.halfTileX;
+        if (typeof saved.activeTab === 'string') prefs.activeTab = saved.activeTab;
         if (isMirrorMode(saved.mirrorMode)) {
             prefs.mirrorMode = saved.mirrorMode;
         } else if ((saved as { mirrorX?: boolean }).mirrorX) {

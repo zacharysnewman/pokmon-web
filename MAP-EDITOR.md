@@ -139,13 +139,14 @@ red-zone toggling too, and every mirrored tile draws from the same budget.
 
 ### Canvas overlay
 
-- **Map bounds** — a white rectangle marks the paintable area: all 28 columns,
-  rows 1–34. The outer rows are dimmed and cannot be painted, because the game
-  draws its HUD over them (score along the top, lives and the fruit counter
-  along the bottom). Columns are never clipped — the tunnel has to wrap through
-  columns 0 and 27. Movable objects are exempt: scatter targets belong outside
-  the maze, and the built-in level parks them on rows 0 and 34.
-- **Grid** — faint guide lines, toggled with `G`.
+- **Map bounds** — a white rectangle around the whole 28 × 36 grid, with a
+  dashed line marking the paintable area inside it.
+- **Reserved rows** — the rows the HUD covers are hatched, washed and labelled
+  *NOT PAINTABLE*: rows 0–1 (`SCORE`) and row 35 (`LIVES`). Tiles and zones are
+  refused there. Columns are never clipped — the tunnel has to wrap through
+  columns 0 and 27. Movable objects are exempt, so scatter targets can still sit
+  in those rows; the built-in level parks two of them on row 0.
+- **Grid** — guide lines, toggled from the toolbar or with `G`.
 - **Tunnel** — cyan boxes with outward arrows on the two tiles that actually
   wrap, amber tint on the slow tiles, and a dashed centre line marking the row. Selecting the tunnel tool lights up the whole row, since that is what
   a click is about to change.
@@ -178,7 +179,7 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 9 | Level name should not be empty (warning only) |
 | 10 | Nothing may exceed the current tile set's budget |
 | 11 | Ghost door tiles and power pellets should exist (warnings only) |
-| 12 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
+| 12 | Pellets outside rows 2–34, hidden under the HUD (warning only) |
 | 13 | A tile marked as both a red zone and a slow tile (warning only) |
 | 14 | Two objects sharing a tile (warning only) |
 
@@ -275,21 +276,71 @@ separately under `editor_prefs`; they follow the person, not the level.
 
 ---
 
-## Mobile & Accessibility
+## Panel Layout
 
-- The canvas is resized and offset so the panel never covers the maze: a side
-  panel on wide screens, a bottom sheet under ~880 px. The layout re-checks
-  itself each frame, which mobile browsers need when the URL bar slides away.
-- Tap targets are at least 44 px (48 px on touch devices), inputs are 16 px so
-  iOS does not zoom on focus, and the panel scrolls with `touch-action: pan-y`.
-- **Hide panel** (`✕`, or `H`) collapses the panel to a floating ✏ button and
-  gives the maze the full screen.
-- Controls are real buttons with `aria-pressed` / `aria-checked` state, the
-  palette is a `radiogroup`, validation output and toasts are `aria-live`
-  regions, and focus rings are visible throughout.
-- Objects can be placed without a pointer: select one in the list, then nudge it
-  with the arrow keys.
-- Sections are collapsible `<details>` blocks, so the panel stays short.
+The panel is a toolbar, not a long scrolling column. It has three fixed parts
+and one that changes:
+
+| Part | Contents |
+|---|---|
+| **Action bar** (always visible) | Hide · Undo · Redo · Grid · a status line |
+| **Tab strip** | Paint · Brush · Objects · Zones · Level · More |
+| **Tab body** | Only the selected section — sized so it does not scroll |
+| **Test level** | Pinned below the body, reachable from every tab |
+
+Undo, redo and Test never move, so they work whichever section is open. The
+bar's buttons carry words wherever they fit — across a wide sheet, or wrapped
+onto a second row in a tall side panel — and fall back to icons with tooltips
+only in a short side panel. **Hide** (`⌄` / `›`) points the way the panel goes;
+**Grid** (`⊞`) toggles the tile grid.
+
+The status line says what a click on the maze would do right now — "Paint Dot",
+"Place Fruit", "Slow tiles" — and switches to the tile under the pointer while
+hovering, naming each layer on it.
+Choosing a tool from the keyboard brings its section forward: `S` opens Zones
+with Slow tiles selected, `3` opens Paint with Dot selected.
+
+Controls sit in grids that reflow to the available width — four columns on a
+phone in portrait, two in the side panel — instead of one control per row.
+Readouts (validation results, budget bars, the shortcut list) take whatever
+space is left and scroll on their own if there is not enough; controls never do.
+
+### Docking, and why the maze stays full size
+
+The maze is sized first; the panel takes the space the maze cannot use.
+
+| Screen | Dock | Maze |
+|---|---|---|
+| ≥ 880 px wide | Side panel, 268 px | Full height — the maze never reaches the panel |
+| Landscape phone | Side panel — a bottom sheet would be two rows tall | Full height |
+| Portrait phone | Bottom sheet, sized to the leftover band | Full width |
+
+The maze is 28 × 36, far squarer than a phone screen, so fitting it to the
+width of a portrait phone leaves a deep band at the bottom — which is exactly
+where the sheet goes. On a 390 × 844 phone that is a 344 px sheet under a maze
+at 100 % of the size it could reach with no panel at all. Desktop, laptop and
+landscape phones are likewise 100 %.
+
+The maze only gives way when the leftover band cannot hold a row of controls
+(under 280 px): a 360 × 640 phone lands at 78 %, a 820 × 1180 tablet at 85 %.
+Overlaying the panel would keep those at 100 % but hide half the maze behind
+it, which is worse for editing than a slightly smaller maze.
+
+The layout is re-checked each frame, because mobile browsers do not reliably
+fire `resize` when the URL bar slides away. **Hide** (`✕`, or `H`) collapses the
+panel to a floating ✏ button and gives the maze the whole screen.
+
+## Accessibility
+
+- Tap targets are at least 44 px (46 px on touch devices, 40 px only on short
+  screens), and inputs are 16 px so iOS does not zoom on focus.
+- The tab strip is a `tablist` of `tab` buttons controlling `tabpanel`s;
+  controls carry `aria-pressed` / `aria-checked`; the palette and mirror modes
+  are `radiogroup`s.
+- Validation output and toasts are `aria-live` regions, and focus rings are
+  visible throughout.
+- Objects can be placed without a pointer: select one, then nudge it with the
+  arrow keys.
 
 ---
 
@@ -303,7 +354,7 @@ separately under `editor_prefs`; they follow the person, not the level.
 | `R` / `S` / `T` | Red zone / Slow tiles / Tunnel row |
 | `[` / `]` | Brush size down / up |
 | `X` | Cycle mirror mode |
-| `G` | Toggle grid |
+| `G` | Toggle grid (also a toolbar button) |
 | `H` | Hide / show the panel |
 | Arrow keys | Nudge the armed object one tile |
 | `Esc` | Drop the armed object |
@@ -394,6 +445,9 @@ interface LevelData {
 | Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
 | Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
 | One zone per tile, one object per tile | ✅ Complete |
+| Tabbed toolbar — every control reachable without scrolling | ✅ Complete |
+| Maze at full size, panel in the space it cannot use | ✅ Complete |
+| HUD rows blocked and marked, full-grid boundary | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |

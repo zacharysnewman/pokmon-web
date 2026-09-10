@@ -1,11 +1,14 @@
 // Which tiles the editor lets you paint.
 //
-// The grid is 28 × 36, but the game draws its HUD over the outermost rows —
-// score along the top, lives and the fruit counter along the bottom — so maze
-// content there is hidden in play. Painting stops one row short at each end.
+// The grid is 28 × 36, but the game draws its HUD over the outermost rows, so
+// maze content there is hidden in play:
 //
-// Columns are not clipped: the tunnel wraps through column 0 and column 27, so
-// those have to stay paintable.
+//   row 0  — "1UP" / "HIGH SCORE" / level
+//   row 1  — the score digits
+//   row 35 — lives and the fruit counter
+//
+// Those rows are blocked for tiles and zones. Columns are not clipped: the
+// tunnel wraps through column 0 and column 27, so those have to stay paintable.
 //
 // Movable objects are exempt. Scatter targets in particular belong outside the
 // maze — the built-in level parks them on rows 0 and 34.
@@ -14,7 +17,7 @@ import { gridW, gridH } from '../constants';
 
 export const EDIT_MIN_X = 0;
 export const EDIT_MAX_X = gridW - 1;
-export const EDIT_MIN_Y = 1;
+export const EDIT_MIN_Y = 2;
 export const EDIT_MAX_Y = gridH - 2;
 
 export const EDIT_COLS = EDIT_MAX_X - EDIT_MIN_X + 1;
@@ -31,4 +34,4 @@ export function isReservedRow(y: number): boolean {
 }
 
 export const RESERVED_ROWS_HINT =
-    `Rows outside ${EDIT_MIN_Y}–${EDIT_MAX_Y} are reserved for the score and lives display`;
+    `Rows outside ${EDIT_MIN_Y}–${EDIT_MAX_Y} are covered by the score and lives display`;
