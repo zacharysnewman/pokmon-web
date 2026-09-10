@@ -5,20 +5,31 @@
 <title>Dot Maze</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        /* A swipe must never pan or bounce the page: the game reads swipes as
+           input, and the browser scrolling underneath shifts the maze sideways.
+           touch-action stops it before any listener runs, which matters while
+           the game is frozen on READY and during the editor's own gestures. */
+        overscroll-behavior: none;
+        touch-action: none;
+    }
     body {
         background-color: #000;
         display: flex;
         justify-content: center;
         align-items: center;
-        width: 100vw;
-        height: 100vh;
+        /* Fixed rather than sized: with nothing scrollable there is nothing to
+           pan, whatever the browser thinks the layout viewport is. */
+        position: fixed;
+        inset: 0;
         overflow: hidden;
     }
+    #gameCanvas { touch-action: none; }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="560" height="720"></canvas>
 
-<script src="dist/bundle-5RFMRYRV.js"></script>
+<script src="dist/bundle-AQJMHSZ7.js"></script>
 </body>
 </html>

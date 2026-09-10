@@ -189,7 +189,18 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 
 ## Play-Testing
 
-**▶ Test Level** validates first, then launches a live game session with the current editor level (1-player keyboard/gamepad). Press **Escape** at any time to return to the editor. Game-over also returns to the editor automatically.
+**▶ Test level** validates first, then launches a live game session with the
+current editor level (1-player keyboard/gamepad/touch). A **✕ Exit test** button
+sits in the corner throughout — the only way back on a phone, where there is no
+Escape key. `Escape` does the same on a keyboard, and game-over returns to the
+editor on its own.
+
+The button sits in the letterboxing beside the maze rather than over it, and
+keeps its taps away from the game's swipe handling, which listens on
+`document`.
+
+While a test owns the canvas the editor's own canvas input is inert, so a swipe
+aimed at the game cannot paint tiles into the level being played.
 
 ---
 

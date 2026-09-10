@@ -2,7 +2,7 @@ import { unit, gridW, gridH } from '../constants';
 import { gameState } from '../game-state';
 import { Levels } from '../static/Levels';
 import { Draw } from '../static/Draw';
-import { startTestGame, viewportSize } from '../Game';
+import { exitTestGame, startTestGame, viewportSize } from '../Game';
 import type { LevelData, TileValue } from '../types';
 import { TILE_EMPTY, TILE_GHOST_DOOR } from '../tiles';
 import { validateLevel } from './Validate';
@@ -746,6 +746,13 @@ function stopEditorLoop(): void {
     editorLoopId++;
 }
 
+/**
+ * True while a play-test owns the canvas. The editor's canvas listeners are
+ * attached once and never removed, so without this a swipe during a test would
+ * run editor tools — painting tiles into the level being played.
+ */
+let testRunning = false;
+
 // ── Save / Load ───────────────────────────────────────────────────────────────
 
 function exportLevelJSON(level: LevelData): void {
@@ -851,8 +858,8 @@ function layoutCanvas(): void {
         reserveY = panelHeight;
     }
 
-    canvas.style.width        = `${560 * scale}px`;
-    canvas.style.height       = `${720 * scale}px`;
+    canvas.style.width        = `${Math.floor(560 * scale)}px`;
+    canvas.style.height       = `${Math.floor(720 * scale)}px`;
     canvas.style.marginRight  = `${reserveX}px`;
     canvas.style.marginBottom = `${reserveY}px`;
 
@@ -938,7 +945,10 @@ function openLibraryModal(
         color: #eee;
     }
     #ed-lib-box h3 { color: #ff0; margin: 0; font-size: 20px; }
-    #ed-lib-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    #ed-lib-list {
+        overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px;
+        touch-action: pan-y; overscroll-behavior: contain;
+    }
     .ed-lib-entry {
         background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
         padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
@@ -1053,8 +1063,50 @@ function openLibraryModal(
 
 // ── Play-test ─────────────────────────────────────────────────────────────────
 
+/**
+ * A way out of a play-test that does not need a keyboard. Escape works too, but
+ * on a phone there is none — without this the only exit was to lose every life.
+ */
+function showExitTestButton(): void {
+    document.getElementById('ed-exit-test')?.remove();
+
+    const button = document.createElement('button');
+    button.id = 'ed-exit-test';
+    button.type = 'button';
+    button.textContent = '✕ Exit test';
+    button.title = 'Return to the editor (Esc)';
+    button.setAttribute('aria-label', 'Exit the play-test and return to the editor');
+    button.style.cssText = [
+        'position: fixed', 'top: 8px', 'left: 8px', 'z-index: 150',
+        'background: rgba(0,0,0,0.85)', 'color: #ff0', 'border: 2px solid #666',
+        'border-radius: 8px', 'padding: 8px 12px', 'min-height: 44px',
+        'font-family: monospace', 'font-size: 14px', 'cursor: pointer',
+        'touch-action: manipulation',
+    ].join(';');
+
+    const leave = (event: Event): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        exitTestGame();
+    };
+    button.addEventListener('click', leave);
+    button.addEventListener('touchend', leave, { passive: false });
+    // The game reads swipes from `document`, so keep taps on the button out of
+    // it — and preventDefault too, since stopping propagation alone would leave
+    // nobody to stop the browser panning the page.
+    for (const type of ['touchstart', 'touchmove', 'mousedown', 'mouseup'] as const) {
+        button.addEventListener(type, (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        }, { passive: false });
+    }
+
+    document.body.appendChild(button);
+}
+
 function runTestGame(state: EditorState, level: LevelData): void {
     stopEditorLoop();
+    testRunning = true;
     const panel = document.getElementById('editor-panel');
     const toggle = document.getElementById('ed-toggle');
     panel?.remove();
@@ -1063,7 +1115,11 @@ function runTestGame(state: EditorState, level: LevelData): void {
     panelOpen = false;
     layoutCanvas();
 
+    showExitTestButton();
+
     startTestGame(level, () => {
+        testRunning = false;
+        document.getElementById('ed-exit-test')?.remove();
         if (panel) {
             document.body.appendChild(panel);
             buildPanel(state, panel);
@@ -1814,6 +1870,7 @@ function attachCanvasEvents(state: EditorState): void {
     const canvas = gameState.canvas;
 
     function onDown(clientX: number, clientY: number): void {
+        if (testRunning) return;
         const cell = tileFromCanvas(clientX, clientY);
         if (!cell) return;
         isPainting = true;
@@ -1824,6 +1881,7 @@ function attachCanvasEvents(state: EditorState): void {
     }
 
     function onMove(clientX: number, clientY: number): void {
+        if (testRunning) return;
         const cell = tileFromCanvas(clientX, clientY);
         state.hoveredCell = cell;
         if (state.selectedTool === 'move') {
@@ -1838,6 +1896,7 @@ function attachCanvasEvents(state: EditorState): void {
     }
 
     function onUp(): void {
+        if (testRunning) return;
         isPainting = false;
         state.draggingMarker = null;
         pendingUndo = null;

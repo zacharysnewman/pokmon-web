@@ -933,9 +933,18 @@ function update(): void {
 
 function testModeEscHandler(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-        returningToEditor = true;
-        document.removeEventListener('keydown', testModeEscHandler);
+        exitTestGame();
     }
+}
+
+/**
+ * Leave a play-test and hand the canvas back to the editor. Escape does this on
+ * a keyboard; the editor puts a button on screen for everyone else.
+ */
+export function exitTestGame(): void {
+    if (!testMode) return;
+    returningToEditor = true;
+    document.removeEventListener('keydown', testModeEscHandler);
 }
 
 export function startTestGame(level: LevelData, onReturn: () => void): void {
@@ -1343,8 +1352,8 @@ function resizeCanvas(): void {
     const canvas = gameState.canvas;
     const { width, height } = viewportSize();
     const scale = Math.min(width / 560, height / 720);
-    canvas.style.width  = `${560 * scale}px`;
-    canvas.style.height = `${720 * scale}px`;
+    canvas.style.width  = `${Math.floor(560 * scale)}px`;
+    canvas.style.height = `${Math.floor(720 * scale)}px`;
 }
 
 window.onload = function () {
