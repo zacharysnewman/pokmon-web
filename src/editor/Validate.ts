@@ -1,12 +1,24 @@
 import { gridW, gridH } from '../constants';
 import type { LevelData } from '../types';
 import { TILE_WALL, TILE_DOT, TILE_POWER } from '../tiles';
+import { EDIT_MAX_Y, EDIT_MIN_Y, isReservedRow } from './Bounds';
+import {
+    BUDGET_ROWS,
+    countUsage,
+    isInfinite,
+    MARKER_KINDS,
+    markersCollide,
+    type TileSet,
+} from './TileSet';
 
 export interface ValidationResult {
     valid: boolean;
     errors: string[];
     warnings: string[];
+    /** Dots + power pellets — everything the player must eat. */
     dotCount: number;
+    smallDots: number;
+    powerDots: number;
 }
 
 function isWalkable(level: LevelData, x: number, y: number): boolean {
@@ -15,7 +27,7 @@ function isWalkable(level: LevelData, x: number, y: number): boolean {
     return tx >= 0 && tx < gridW && ty >= 0 && ty < gridH && level.tiles[ty][tx] > TILE_WALL;
 }
 
-export function validateLevel(level: LevelData): ValidationResult {
+export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -29,15 +41,20 @@ export function validateLevel(level: LevelData): ValidationResult {
             break;
         }
     }
-    if (errors.length > 0) return { valid: false, errors, warnings, dotCount: 0 };
+    if (errors.length > 0) {
+        return { valid: false, errors, warnings, dotCount: 0, smallDots: 0, powerDots: 0 };
+    }
 
     // 2. Count collectibles
-    let dotCount = 0;
+    let smallDots = 0;
+    let powerDots = 0;
     for (const row of level.tiles) {
         for (const t of row) {
-            if (t === TILE_DOT || t === TILE_POWER) dotCount++;
+            if (t === TILE_DOT)   smallDots++;
+            if (t === TILE_POWER) powerDots++;
         }
     }
+    const dotCount = smallDots + powerDots;
     if (dotCount === 0) errors.push('Level must contain at least one dot or power pellet');
 
     // 3. Player spawn must be on a walkable tile
@@ -68,6 +85,14 @@ export function validateLevel(level: LevelData): ValidationResult {
     // 6. Tunnel row in bounds
     if (level.tunnelRow < 0 || level.tunnelRow >= gridH) {
         errors.push(`Tunnel row ${level.tunnelRow} is out of bounds`);
+    }
+
+    // 6b. Slow tiles on walls do nothing — enemies can never stand there
+    const strandedSlow = level.tunnelSlowTiles.filter(
+        t => !isWalkable(level, t.x, t.y),
+    ).length;
+    if (strandedSlow > 0) {
+        warnings.push(`${strandedSlow} slow tile(s) sit on walls, where no enemy can reach them`);
     }
 
     // 7. BFS reachability from player start (respect tunnel wrapping)
@@ -114,5 +139,63 @@ export function validateLevel(level: LevelData): ValidationResult {
         warnings.push('Level has no name');
     }
 
-    return { valid: errors.length === 0, errors, warnings, dotCount };
+    // 9. Tile set budgets — an over-budget level is an editor-side error only,
+    //    the level still loads and plays fine.
+    const usage = countUsage(level);
+    if (tileSet) {
+        for (const { key, label } of BUDGET_ROWS) {
+            const budget = tileSet.budgets[key];
+            if (isInfinite(budget)) continue;
+            if (usage[key] > budget) {
+                errors.push(
+                    `${label}: ${usage[key]} placed, "${tileSet.name}" tile set allows ${budget}`,
+                );
+            }
+        }
+    }
+
+    // 10. Ghost house sanity
+    if (usage.door === 0) {
+        warnings.push('No ghost door tiles — ghosts will not have a gate to pass through');
+    }
+    if (powerDots === 0) {
+        warnings.push('No power pellets — ghosts can never be frightened');
+    }
+
+    // 11. Collectibles hidden under the HUD (possible in imported levels — the
+    //     editor itself will not paint there)
+    let hiddenPellets = 0;
+    for (let y = 0; y < gridH; y++) {
+        if (!isReservedRow(y)) continue;
+        for (let x = 0; x < gridW; x++) {
+            const t = level.tiles[y][x];
+            if (t === TILE_DOT || t === TILE_POWER) hiddenPellets++;
+        }
+    }
+    if (hiddenPellets > 0) {
+        warnings.push(
+            `${hiddenPellets} pellet(s) sit outside rows ${EDIT_MIN_Y}–${EDIT_MAX_Y}, ` +
+            `where the score and lives display covers them`,
+        );
+    }
+
+    // 12. One zone to a tile
+    const redKeys = new Set(level.redZoneTiles.map(t => `${t.x},${t.y}`));
+    const doubleZoned = level.tunnelSlowTiles.filter(t => redKeys.has(`${t.x},${t.y}`)).length;
+    if (doubleZoned > 0) {
+        warnings.push(`${doubleZoned} tile(s) are marked as both a red zone and a slow tile`);
+    }
+
+    // 13. One movable object to a tile
+    for (let i = 0; i < MARKER_KINDS.length; i++) {
+        for (let j = i + 1; j < MARKER_KINDS.length; j++) {
+            const a = MARKER_KINDS[i];
+            const b = MARKER_KINDS[j];
+            if (markersCollide(a.get(level), b.get(level))) {
+                warnings.push(`${a.label} and ${b.label} share a tile`);
+            }
+        }
+    }
+
+    return { valid: errors.length === 0, errors, warnings, dotCount, smallDots, powerDots };
 }

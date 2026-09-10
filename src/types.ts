@@ -51,8 +51,8 @@ export interface LevelData {
     };
     fruitSpawn:       { x: number; y: number };
     tunnelRow:        number;
-    tunnelSlowColMax: number;
-    tunnelSlowColMin: number;
+    /** Tiles where enemies crawl (the warp-tunnel mouths). */
+    tunnelSlowTiles:  { x: number; y: number }[];
     redZoneTiles:     { x: number; y: number }[];
     enemyHouseDoor:   { x: number; y: number };
     scatterTargets: {

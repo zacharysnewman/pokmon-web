@@ -18,44 +18,148 @@ On load the editor restores the last auto-saved session. If no autosave exists i
 
 ## Features
 
-### Tile Painting
-| Tool | How to use |
+### What a tile can hold
+
+A level is three independent layers. Within a layer, one thing per tile — the
+layers never mix.
+
+| Layer | Contents | Rule |
+|---|---|---|
+| **Tiles** (`tiles[y][x]`) | Wall, Empty, Dot, Power, Ghost door | Exactly one value per tile. Painting replaces what was there. |
+| **Zones** (coordinate lists) | Red zone, Slow tile | At most one zone per tile. Painting one displaces the other. |
+| **Objects** (coordinates) | Player, 4 ghost starts, fruit, 4 scatter targets | One object per tile. A drop onto an occupied tile is refused. |
+
+Zones and objects sit *on top of* a tile, so a dot can be a red zone, and a
+ghost can start on a slow tile — the built-in level itself puts two of its four
+red zones on dot tiles. What cannot happen is two of the same layer on one tile.
+
+An object on a half-tile (`x.5`) straddles two columns and holds both, which is
+how it is drawn and how collisions are judged.
+
+Clicking an object always picks it up, even while holding another one — with one
+object to a tile, a click there could never have been a placement, so the editor
+says which object it grabbed instead.
+
+### The tile set (budgets)
+
+Every placeable thing has a budget, so a custom map can be held to the same
+stock as the main map instead of drifting into something unplayable. Budgets
+are an **editor-side constraint only** — the saved JSON, the level format and
+the game logic are untouched.
+
+| Tile set | Dots | Power | Ghost doors | Red zones | Slow tiles | Walls / Empty |
+|---|---|---|---|---|---|---|
+| **Classic** (default) | 240 | 4 | 2 | 4 | 12 | ∞ |
+| **Extended** | 360 | 8 | 4 | 8 | 24 | ∞ |
+| **Sandbox** | ∞ | ∞ | ∞ | ∞ | ∞ | ∞ |
+
+- Classic's numbers are read from the built-in map at startup, so they cannot
+  drift out of sync with it.
+- A budget of `-1` (`INFINITE`, shown as `∞`) means unlimited.
+- The **Tile set** section shows a live `used / budget` bar per kind, and each
+  palette entry shows how many are left.
+- Painting past a budget is refused and explains itself in a toast; erasing
+  hands the budget back. Flood fill places as many as the budget allows.
+- The tile set is remembered per person (`editor_prefs`) and stored alongside
+  library entries, so re-opening a map restores the set it was authored under.
+- Validation reports anything over budget — e.g. after importing a level built
+  under a roomier set.
+
+### Objects — one of each
+
+Spawns and scatter targets are single movable objects, not paintable tiles.
+There is exactly one of each and it can never be duplicated or deleted:
+
+| Object | What it is |
 |---|---|
-| **Paint** | Click/drag the canvas to place the selected tile type |
-| **Erase** | Click/drag to set tiles to Empty |
-| **Flood Fill** | Click any tile to BFS-fill all contiguous matching tiles |
+| **P Player** | Where the player starts each life |
+| **R / C / H / O** | The four ghost starting points |
+| **F Fruit** | Where bonus fruit appears |
+| **✕ ×4** | Each ghost's scatter-mode corner target |
+
+With the **✥ Move objects** tool you drag any of them straight on the maze.
+Clicking an object in the **Objects** list arms it — the next tap on the maze
+places it — and arrow keys nudge the armed object one tile at a time. The list
+shows each object's live coordinates. **Drop on half-tile** places on `x.5`
+(the Classic player and red ghost sit on half-tiles).
+
+The ghost-house gate is a **tile** now (budget 2 in Classic), painted like any
+other. The level's `enemyHouseDoor` coordinate is kept in sync automatically,
+so the saved JSON is unchanged.
+
+### Tile Painting
+
+| Tool | How to use | Key |
+|---|---|---|
+| **Paint** | Click/drag the canvas to place the selected tile | `B` |
+| **Erase** | Click/drag to set tiles to Empty | `E` |
+| **Flood Fill** | Click any tile to BFS-fill all contiguous matching tiles | `F` |
+| **Move objects** | Drag spawns and scatter targets | `M` |
+| **Red zone** | Click/drag to toggle junctions where ghosts can't turn up | `R` |
+| **Slow tiles** | Click/drag to toggle tiles where enemies crawl | `S` |
+| **Tunnel row** | Click any tile — its row becomes the warp tunnel row | `T` |
+
+**Slow tiles** are the warp-tunnel mouths, where enemies move at a crawl. They
+are per-tile, like red zones: paint them anywhere, in any shape, not just on the
+tunnel row. The built-in level marks the same twelve tiles the old
+`tunnelSlowColMax` / `tunnelSlowColMin` column bounds described (row 17, columns
+0–5 and 22–27), so the game plays exactly as before. Levels saved with the old
+column fields are converted on load.
 
 Tile types in the palette:
 
-| Swatch | Value | Meaning |
-|---|---|---|
-| Wall | `0` | Solid — players and enemies cannot pass |
-| Door | `2` | Enemy house gate — only enemies in entering/exiting mode pass |
-| Dot  | `3` | Small pellet — collectible, counts toward level clear |
-| Power | `4` | Power pellet — triggers frightened mode |
-| Empty | `5` | Open corridor — passable, no collectible |
+| Swatch | Value | Meaning | Key |
+|---|---|---|---|
+| Wall | `0` | Solid — players and enemies cannot pass | `1` |
+| Empty | `5` | Open corridor, no collectible | `2` |
+| Dot  | `3` | Small pellet — counts toward level clear | `3` |
+| Power | `4` | Power pellet — triggers frightened mode | `4` |
+| Ghost Door | `2` | Ghost-house gate — only entering/exiting ghosts pass | `5` |
 
-### Spawn / Config Tools
-| Button | Effect |
+**Brush size** paints 1×1, 2×2 or 3×3 at once (`[` and `]`).
+
+### Mirror painting
+
+Symmetric mazes take a quarter of the clicks. `X` cycles the modes; the mirrored
+axes are drawn on the canvas as dashed guides, and the hover preview shows every
+tile a stroke will touch.
+
+| Mode | Also paints |
 |---|---|
-| **P Player** | Click canvas to move player spawn |
-| **R Red** | Move Red enemy spawn |
-| **C Cyan** | Move Cyan enemy spawn |
-| **H Pink** | Move Hotpink enemy spawn |
-| **O Orange** | Move Orange enemy spawn |
-| **F Fruit** | Move fruit spawn |
-| **🚪 Door** | Place the enemy house gate tile |
-| **~ Tunnel Row** | Click any tile — its row becomes the warp tunnel row |
-| **⊕ Red Zone** | Click/drag to toggle red-zone tiles (junctions where enemies can't turn upward) |
+| **· Off** | nothing else |
+| **⇔ L/R** | the matching column on the other side |
+| **⇕ T/B** | the matching row on the other side |
+| **⤢ Diag** | the tile opposite through the centre |
+| **⊞ All 4** | all four quadrants at once |
 
-### Scatter Targets
-Four cross-marker tools (one per enemy color) let you click anywhere on the canvas to set that enemy's scatter-mode corner target. Targets are shown as colored ✕ markers in the overlay.
+The grid is 28 × 36 — not square — so a corner-to-corner diagonal reflection has
+nowhere to land; **Diag** mirrors through the centre point (a 180° rotation),
+which is the diagonal symmetry a rectangular maze can hold. Mirroring applies to
+red-zone toggling too, and every mirrored tile draws from the same budget.
 
-### Grid & Undo
-- **Grid toggle** — show/hide the tile grid overlay
-- **Undo / Redo** — snapshot-based (up to 50 steps); keyboard: `Ctrl+Z` / `Ctrl+Y` or `Ctrl+Shift+Z`
+### Canvas overlay
 
----
+- **Map bounds** — a white rectangle marks the paintable area: all 28 columns,
+  rows 1–34. The outer rows are dimmed and cannot be painted, because the game
+  draws its HUD over them (score along the top, lives and the fruit counter
+  along the bottom). Columns are never clipped — the tunnel has to wrap through
+  columns 0 and 27. Movable objects are exempt: scatter targets belong outside
+  the maze, and the built-in level parks them on rows 0 and 34.
+- **Grid** — faint guide lines, toggled with `G`.
+- **Tunnel** — cyan boxes with outward arrows on the two tiles that actually
+  wrap, amber tint on the slow tiles, and a dashed centre line marking the row. Selecting the tunnel tool lights up the whole row, since that is what
+  a click is about to change.
+- Red-zone tint, ghost-door outlines, mirror guides.
+- Object markers, with a dashed ring around the armed one.
+- Hover preview of the exact cells the brush will paint.
+
+Walls, dots and the ghost-house gate are drawn from the level being edited, so
+the maze on screen is always the maze you are painting.
+
+### Undo / Redo
+
+Snapshot-based, up to 50 steps; `Ctrl+Z` / `Ctrl+Y` (or `Ctrl+Shift+Z`). One
+stroke is one step, and a stroke that changes nothing does not push a step.
 
 ## Validation
 
@@ -69,8 +173,16 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 4 | All enemy spawns must be on walkable tiles |
 | 5 | Fruit spawn should be on a walkable tile (warning only) |
 | 6 | Tunnel row must be in bounds |
-| 7 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
-| 8 | Level name should not be empty (warning only) |
+| 7 | Slow tiles must not sit on walls, where no enemy can reach them (warning only) |
+| 8 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
+| 9 | Level name should not be empty (warning only) |
+| 10 | Nothing may exceed the current tile set's budget |
+| 11 | Ghost door tiles and power pellets should exist (warnings only) |
+| 12 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
+| 13 | A tile marked as both a red zone and a slow tile (warning only) |
+| 14 | Two objects sharing a tile (warning only) |
+
+**▶ Test level** runs the same checks first and refuses to launch on errors.
 
 ---
 
@@ -86,14 +198,14 @@ All maps are stored persistently in `localStorage` under the key `editor_library
 
 | Button | Effect |
 |---|---|
-| **💾 Save to Library** | Saves/updates the current level. Re-saving overwrites the same entry (by ID). Requires a non-empty level name. |
-| **📂 My Maps (n)** | Opens the library browser modal showing all saved levels. |
+| **💾 Save to library** | Saves/updates the current level, along with the tile set it was authored under. Re-saving overwrites the same entry (by ID). Requires a non-empty level name. |
+| **📂 My maps (n)** | Opens the library browser modal showing all saved levels. |
 
 ### Library Modal
 
 Each entry shows:
 - **Level name** and last-saved timestamp
-- **Dot count**
+- **Dot and power-pellet counts**
 - **📂 Load** — loads the level into the editor (pushes undo)
 - **▶ Test** — validates and launches a test game directly from the library
 - **🗑 Delete** — removes the entry (with confirmation)
@@ -124,8 +236,12 @@ Each entry shows:
   },
   "fruitSpawn":       { "x": 13, "y": 20 },
   "tunnelRow":        17,
-  "tunnelSlowColMax": 5,
-  "tunnelSlowColMin": 22,
+  "tunnelSlowTiles": [
+    { "x": 0, "y": 17 }, { "x": 1, "y": 17 }, { "x": 2, "y": 17 },
+    { "x": 3, "y": 17 }, { "x": 4, "y": 17 }, { "x": 5, "y": 17 },
+    { "x": 22, "y": 17 }, { "x": 23, "y": 17 }, { "x": 24, "y": 17 },
+    { "x": 25, "y": 17 }, { "x": 26, "y": 17 }, { "x": 27, "y": 17 }
+  ],
   "redZoneTiles": [
     { "x": 12, "y": 14 }, { "x": 15, "y": 14 },
     { "x": 12, "y": 26 }, { "x": 15, "y": 26 }
@@ -140,11 +256,40 @@ Each entry shows:
 }
 ```
 
+`enemyHouseDoor` is derived from the painted ghost-door tiles rather than placed
+separately, but it is still written out exactly as before.
+
+`tunnelSlowTiles` replaces the old `tunnelSlowColMax` / `tunnelSlowColMin` pair.
+A level file carrying the old fields is converted on load
+(`src/editor/LevelMigrate.ts`) into the tiles those bounds covered, so nothing
+saved by an earlier version loses its slow zones.
+
 ---
 
 ## Auto-Save
 
 The editor auto-saves to `localStorage` key `editor_autosave` within 500 ms of any change (debounced). This is separate from the library — it is a single scratch-pad slot that restores the last working state on page reload.
+
+Editor settings (tile set, brush size, mirror mode, grid, half-tile drops) live
+separately under `editor_prefs`; they follow the person, not the level.
+
+---
+
+## Mobile & Accessibility
+
+- The canvas is resized and offset so the panel never covers the maze: a side
+  panel on wide screens, a bottom sheet under ~880 px. The layout re-checks
+  itself each frame, which mobile browsers need when the URL bar slides away.
+- Tap targets are at least 44 px (48 px on touch devices), inputs are 16 px so
+  iOS does not zoom on focus, and the panel scrolls with `touch-action: pan-y`.
+- **Hide panel** (`✕`, or `H`) collapses the panel to a floating ✏ button and
+  gives the maze the full screen.
+- Controls are real buttons with `aria-pressed` / `aria-checked` state, the
+  palette is a `radiogroup`, validation output and toasts are `aria-live`
+  regions, and focus rings are visible throughout.
+- Objects can be placed without a pointer: select one in the list, then nudge it
+  with the arrow keys.
+- Sections are collapsible `<details>` blocks, so the panel stays short.
 
 ---
 
@@ -152,6 +297,16 @@ The editor auto-saves to `localStorage` key `editor_autosave` within 500 ms of a
 
 | Shortcut | Action |
 |---|---|
+| `1`–`5` | Pick a tile (wall, empty, dot, power, ghost door) |
+| `B` / `E` / `F` | Paint / Erase / Fill |
+| `M` | Move objects |
+| `R` / `S` / `T` | Red zone / Slow tiles / Tunnel row |
+| `[` / `]` | Brush size down / up |
+| `X` | Cycle mirror mode |
+| `G` | Toggle grid |
+| `H` | Hide / show the panel |
+| Arrow keys | Nudge the armed object one tile |
+| `Esc` | Drop the armed object |
 | `Ctrl+Z` / `Cmd+Z` | Undo |
 | `Ctrl+Y` / `Ctrl+Shift+Z` / `Cmd+Shift+Z` | Redo |
 | `Escape` (during test) | Return to editor |
@@ -164,9 +319,14 @@ The editor auto-saves to `localStorage` key `editor_autosave` within 500 ms of a
 
 | File | Purpose |
 |---|---|
-| `src/editor/EditorState.ts` | State interface, undo/redo, deep-copy helpers |
+| `src/editor/EditorState.ts` | State interface, undo/redo, live usage counts, deep-copy helpers |
 | `src/editor/EditorLoop.ts` | rAF loop, canvas input, tool dispatch, panel UI, library modal |
-| `src/editor/Validate.ts` | BFS reachability and all validation rules |
+| `src/editor/TileSet.ts` | Placeable kinds, movable objects, tile sets and budgets |
+| `src/editor/Mirror.ts` | Mirror modes and the tiles each stroke echoes to |
+| `src/editor/Bounds.ts` | Which tiles may be painted (rows the HUD covers are locked) |
+| `src/editor/LevelMigrate.ts` | Brings level JSON from older versions up to date |
+| `src/editor/EditorPrefs.ts` | Per-person settings (tile set, brush, mirror, grid) |
+| `src/editor/Validate.ts` | BFS reachability, budgets and all validation rules |
 | `src/editor/LevelLibrary.ts` | localStorage multi-map library (CRUD) |
 
 ### Data Flow
@@ -208,8 +368,7 @@ interface LevelData {
     };
     fruitSpawn:       { x: number; y: number };
     tunnelRow:        number;
-    tunnelSlowColMax: number;
-    tunnelSlowColMin: number;
+    tunnelSlowTiles:  { x: number; y: number }[];
     redZoneTiles:     { x: number; y: number }[];
     enemyHouseDoor:   { x: number; y: number };
     scatterTargets: {
@@ -227,11 +386,21 @@ interface LevelData {
 
 | Feature | Status |
 |---|---|
+| Tile sets with per-tile budgets (`-1` = infinite) | ✅ Complete |
+| Dots / power / doors / red zones capped to main-map counts | ✅ Complete |
+| Spawns and scatter targets as single movable objects | ✅ Complete |
+| Drag-to-move, arm-and-place, arrow-key nudging | ✅ Complete |
+| Brush sizes and 4-way mirror painting | ✅ Complete |
+| Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
+| Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
+| One zone per tile, one object per tile | ✅ Complete |
+| Maze rendered from the level being edited | ✅ Complete |
+| Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |
 | Undo / redo (50 steps) | ✅ Complete |
-| Grid overlay + hover highlight | ✅ Complete |
+| Grid overlay + brush-footprint hover preview | ✅ Complete |
 | Spawn placement (Player, 4 enemies, Fruit) | ✅ Complete |
-| Enemy house door placement | ✅ Complete |
+| Ghost house door as a budgeted tile | ✅ Complete |
 | Tunnel row configuration | ✅ Complete |
 | Red zone tile toggle | ✅ Complete |
 | Scatter target placement (per enemy) | ✅ Complete |

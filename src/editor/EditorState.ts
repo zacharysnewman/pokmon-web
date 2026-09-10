@@ -1,22 +1,15 @@
 import type { LevelData, TileValue } from '../types';
+import { countUsage, getTileSet, type MarkerKindId, type TileSet, type Usage } from './TileSet';
+import { defaultPrefs, type EditorPrefs } from './EditorPrefs';
 
 export type EditorTool =
     | 'paint'
     | 'erase'
     | 'fill'
-    | 'player_spawn'
-    | 'enemy_red'
-    | 'enemy_cyan'
-    | 'enemy_hotpink'
-    | 'enemy_orange'
-    | 'fruit_spawn'
+    | 'move'          // grab / place the single movable objects (spawns, targets)
     | 'tunnel_config'
     | 'red_zone'
-    | 'enemy_house_door'
-    | 'scatter_red'
-    | 'scatter_cyan'
-    | 'scatter_hotpink'
-    | 'scatter_orange';
+    | 'slow_zone';
 
 export interface EditorState {
     level: LevelData;
@@ -24,11 +17,19 @@ export interface EditorState {
     libraryId: string | null;
     selectedTool: EditorTool;
     selectedTileValue: TileValue;
+    /** Which movable object the move tool places on the next canvas click. */
+    armedMarker: MarkerKindId | null;
+    /** Object currently being dragged, if any. */
+    draggingMarker: MarkerKindId | null;
     hoveredCell: { x: number; y: number } | null;
     undoStack: LevelData[];
     redoStack: LevelData[];
     isDirty: boolean;
-    showGrid: boolean;
+    /** Live count of everything the tile set budgets. */
+    usage: Usage;
+    prefs: EditorPrefs;
+    /** Set when a readout in the panel needs refreshing on the next frame. */
+    uiDirty: boolean;
 }
 
 export function deepCopyLevel(level: LevelData): LevelData {
@@ -44,7 +45,8 @@ export function deepCopyLevel(level: LevelData): LevelData {
         },
         fruitSpawn:     { ...level.fruitSpawn },
         enemyHouseDoor: { ...level.enemyHouseDoor },
-        redZoneTiles:   level.redZoneTiles.map(t => ({ ...t })),
+        redZoneTiles:     level.redZoneTiles.map(t => ({ ...t })),
+        tunnelSlowTiles:  level.tunnelSlowTiles.map(t => ({ ...t })),
         scatterTargets: {
             redEnemy:     { ...level.scatterTargets.redEnemy },
             cyanEnemy:    { ...level.scatterTargets.cyanEnemy },
@@ -54,18 +56,37 @@ export function deepCopyLevel(level: LevelData): LevelData {
     };
 }
 
-export function createEditorState(level: LevelData, libraryId: string | null = null): EditorState {
+export function createEditorState(
+    level: LevelData,
+    libraryId: string | null = null,
+    prefs: EditorPrefs = defaultPrefs(),
+): EditorState {
+    const copy = deepCopyLevel(level);
     return {
-        level: deepCopyLevel(level),
+        level: copy,
         libraryId,
         selectedTool: 'paint',
         selectedTileValue: 5 as TileValue, // TILE_EMPTY
+        armedMarker: null,
+        draggingMarker: null,
         hoveredCell: null,
         undoStack: [],
         redoStack: [],
         isDirty: false,
-        showGrid: true,
+        usage: countUsage(copy),
+        prefs,
+        uiDirty: true,
     };
+}
+
+export function activeTileSet(state: EditorState): TileSet {
+    return getTileSet(state.prefs.tileSetId);
+}
+
+/** Recount from scratch — after undo/redo, import, load or reset. */
+export function recountUsage(state: EditorState): void {
+    state.usage = countUsage(state.level);
+    state.uiDirty = true;
 }
 
 export function pushUndo(state: EditorState): void {
@@ -75,14 +96,18 @@ export function pushUndo(state: EditorState): void {
     state.isDirty = true;
 }
 
-export function undo(state: EditorState): void {
-    if (state.undoStack.length === 0) return;
+export function undo(state: EditorState): boolean {
+    if (state.undoStack.length === 0) return false;
     state.redoStack.push(deepCopyLevel(state.level));
     state.level = state.undoStack.pop()!;
+    recountUsage(state);
+    return true;
 }
 
-export function redo(state: EditorState): void {
-    if (state.redoStack.length === 0) return;
+export function redo(state: EditorState): boolean {
+    if (state.redoStack.length === 0) return false;
     state.undoStack.push(deepCopyLevel(state.level));
     state.level = state.redoStack.pop()!;
+    recountUsage(state);
+    return true;
 }

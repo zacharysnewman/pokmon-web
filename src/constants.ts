@@ -2,10 +2,6 @@ export const gridW = 28;
 export const gridH = 36;
 export const unit = 20;
 
-// Warp tunnel
-export const TUNNEL_ROW = 17;
-export const TUNNEL_SLOW_COL_MAX = 5;   // cols 0–5 (left side)
-export const TUNNEL_SLOW_COL_MIN = 22;  // cols 22–27 (right side)
 
 // T-junctions where ghosts cannot turn upward in scatter/chase mode.
 // These are the four intersections flanking the ghost house where horizontal
