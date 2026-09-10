@@ -86,6 +86,11 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         errors.push(`Tunnel row ${level.tunnelRow} is out of bounds`);
     }
 
+    // 6b. Tunnel slow columns
+    if (level.tunnelSlowColMax >= level.tunnelSlowColMin) {
+        warnings.push('Tunnel slow columns overlap — the whole tunnel row will slow enemies');
+    }
+
     // 7. BFS reachability from player start (respect tunnel wrapping)
     const startX = Math.round(ps.x);
     const startY = Math.round(ps.y);

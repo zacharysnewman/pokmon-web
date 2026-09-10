@@ -76,6 +76,12 @@ so the saved JSON is unchanged.
 | **Red zone** | Click/drag to toggle junctions where ghosts can't turn up | `R` |
 | **Tunnel row** | Click any tile — its row becomes the warp tunnel row | `T` |
 
+The **slow columns** (`tunnelSlowColMax` / `tunnelSlowColMin`) are numbers on the
+level, not tiles: enemies crawl when they are on the tunnel row *and* at or
+outside those columns. The Zones section has a field for each, clamped to the
+grid. Set the left field to `-1`, or the right to `28`, to drop that side's slow
+zone entirely.
+
 Tile types in the palette:
 
 | Swatch | Value | Meaning | Key |
@@ -150,7 +156,8 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 9 | Nothing may exceed the current tile set's budget |
 | 10 | Ghost door tiles and power pellets should exist (warnings only) |
 | 11 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
-| 12 | Two objects starting on the same tile (warning only) |
+| 12 | Tunnel slow columns overlapping (warning only) |
+| 13 | Two objects starting on the same tile (warning only) |
 
 **▶ Test level** runs the same checks first and refuses to launch on errors.
 
@@ -354,6 +361,7 @@ interface LevelData {
 | Drag-to-move, arm-and-place, arrow-key nudging | ✅ Complete |
 | Brush sizes and 4-way mirror painting | ✅ Complete |
 | Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
+| Tunnel slow columns editable | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |

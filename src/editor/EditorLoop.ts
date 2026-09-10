@@ -904,6 +904,12 @@ const PANEL_CSS = `
 #editor-panel .ed-sec[open] > summary { border-bottom: 1px solid #333; margin-bottom: 8px; }
 #editor-panel .ed-stack { display: flex; flex-direction: column; gap: 6px; }
 #editor-panel .ed-label-sm { font-size: 12px; color: #999; margin-top: 4px; }
+#editor-panel .ed-num { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #ccc; }
+#editor-panel input[type=number] {
+    background: #111; color: #ff0; border: 1px solid #666; border-radius: 6px;
+    padding: 8px 6px; font-family: monospace; font-size: 16px; min-height: 44px;
+    width: 100%; box-sizing: border-box;
+}
 #editor-panel #ed-mirror-modes button { flex: 1 1 60px; min-width: 60px; padding: 6px 4px; font-size: 13px; }
 #editor-panel .ed-row { display: flex; gap: 6px; flex-wrap: wrap; }
 #editor-panel .ed-row > * { flex: 1 1 0; min-width: 64px; }
@@ -1072,6 +1078,15 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                 <button id="ed-tool-tunnel" aria-pressed="false" title="Click a row to make it the warp tunnel (T)">
                     ~ Tunnel row<span class="ed-count" id="ed-tunnel-row"></span>
                 </button>
+                <div class="ed-label-sm">Slow columns (enemies crawl here)</div>
+                <div class="ed-row">
+                    <label class="ed-num" for="ed-slow-left">≤
+                        <input type="number" id="ed-slow-left" min="-1" max="${gridW - 1}" step="1">
+                    </label>
+                    <label class="ed-num" for="ed-slow-right">≥
+                        <input type="number" id="ed-slow-right" min="0" max="${gridW}" step="1">
+                    </label>
+                </div>
                 <p class="ed-desc" id="ed-tunnel-desc"></p>
             </div>
         </details>
@@ -1238,6 +1253,25 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
     }
 
     el<HTMLButtonElement>('ed-hide').onclick = () => setPanelOpen(false);
+
+    // Tunnel slow columns — level data that previously had no control
+    const slowLeft  = el<HTMLInputElement>('ed-slow-left');
+    const slowRight = el<HTMLInputElement>('ed-slow-right');
+    const commitSlow = (input: HTMLInputElement, min: number, max: number, apply: (v: number) => void) => {
+        const value = Math.round(Number(input.value));
+        if (!Number.isFinite(value)) return;
+        const clamped = Math.min(max, Math.max(min, value));
+        input.value = String(clamped);   // show what was actually stored
+        beginStroke(state);
+        apply(clamped);
+        noteChange(state);
+    };
+    slowLeft.onchange = () => commitSlow(slowLeft, -1, gridW - 1, (v) => {
+        state.level.tunnelSlowColMax = v;
+    });
+    slowRight.onchange = () => commitSlow(slowRight, 0, gridW, (v) => {
+        state.level.tunnelSlowColMin = v;
+    });
 
     // Mirror modes
     const mirrorRow = el('ed-mirror-modes');
@@ -1421,10 +1455,13 @@ function refreshReadouts(state: EditorState): void {
     const rzBudget = tileSet.budgets.red_zone;
     el('ed-rz-count').textContent = formatBudget(state.usage.red_zone, rzBudget);
     el('ed-tunnel-row').textContent = `row ${state.level.tunnelRow}`;
+    const slowLeftInput  = el<HTMLInputElement>('ed-slow-left');
+    const slowRightInput = el<HTMLInputElement>('ed-slow-right');
+    if (document.activeElement !== slowLeftInput)  slowLeftInput.value  = String(state.level.tunnelSlowColMax);
+    if (document.activeElement !== slowRightInput) slowRightInput.value = String(state.level.tunnelSlowColMin);
     el('ed-tunnel-desc').textContent =
-        `Cyan boxes mark the two tiles that wrap to the other side. Amber columns `
-        + `(0–${state.level.tunnelSlowColMax} and ${state.level.tunnelSlowColMin}–${gridW - 1}) `
-        + `are where enemies slow down.`;
+        'Cyan boxes mark the two tiles that wrap to the other side; amber marks the '
+        + 'slow columns. Slowing applies on the tunnel row only.';
 
     // History
     ui.undo.disabled = state.undoStack.length === 0;
@@ -1544,7 +1581,8 @@ function nudgeArmedMarker(state: EditorState, dx: number, dy: number): void {
 function attachKeyboardShortcuts(state: EditorState): void {
     document.addEventListener('keydown', (e: KeyboardEvent) => {
         const target = e.target as HTMLElement | null;
-        const typing = target instanceof HTMLInputElement && target.type === 'text';
+        const typing = target instanceof HTMLInputElement
+            && (target.type === 'text' || target.type === 'number');
         if (typing || target instanceof HTMLSelectElement) return;
 
         if (e.ctrlKey || e.metaKey) {
