@@ -25,11 +25,11 @@ stock as the main map instead of drifting into something unplayable. Budgets
 are an **editor-side constraint only** — the saved JSON, the level format and
 the game logic are untouched.
 
-| Tile set | Dots | Power | Ghost doors | Red zones | Walls / Empty |
-|---|---|---|---|---|---|
-| **Classic** (default) | 240 | 4 | 2 | 4 | ∞ |
-| **Extended** | 360 | 8 | 4 | 8 | ∞ |
-| **Sandbox** | ∞ | ∞ | ∞ | ∞ | ∞ |
+| Tile set | Dots | Power | Ghost doors | Red zones | Slow tiles | Walls / Empty |
+|---|---|---|---|---|---|---|
+| **Classic** (default) | 240 | 4 | 2 | 4 | 12 | ∞ |
+| **Extended** | 360 | 8 | 4 | 8 | 24 | ∞ |
+| **Sandbox** | ∞ | ∞ | ∞ | ∞ | ∞ | ∞ |
 
 - Classic's numbers are read from the built-in map at startup, so they cannot
   drift out of sync with it.
@@ -74,13 +74,15 @@ so the saved JSON is unchanged.
 | **Flood Fill** | Click any tile to BFS-fill all contiguous matching tiles | `F` |
 | **Move objects** | Drag spawns and scatter targets | `M` |
 | **Red zone** | Click/drag to toggle junctions where ghosts can't turn up | `R` |
+| **Slow tiles** | Click/drag to toggle tiles where enemies crawl | `S` |
 | **Tunnel row** | Click any tile — its row becomes the warp tunnel row | `T` |
 
-The **slow columns** (`tunnelSlowColMax` / `tunnelSlowColMin`) are numbers on the
-level, not tiles: enemies crawl when they are on the tunnel row *and* at or
-outside those columns. The Zones section has a field for each, clamped to the
-grid. Set the left field to `-1`, or the right to `28`, to drop that side's slow
-zone entirely.
+**Slow tiles** are the warp-tunnel mouths, where enemies move at a crawl. They
+are per-tile, like red zones: paint them anywhere, in any shape, not just on the
+tunnel row. The built-in level marks the same twelve tiles the old
+`tunnelSlowColMax` / `tunnelSlowColMin` column bounds described (row 17, columns
+0–5 and 22–27), so the game plays exactly as before. Levels saved with the old
+column fields are converted on load.
 
 Tile types in the palette:
 
@@ -123,9 +125,7 @@ red-zone toggling too, and every mirrored tile draws from the same budget.
   the maze, and the built-in level parks them on rows 0 and 34.
 - **Grid** — faint guide lines, toggled with `G`.
 - **Tunnel** — cyan boxes with outward arrows on the two tiles that actually
-  wrap, amber tint on the columns where enemies slow down
-  (`tunnelSlowColMax` / `tunnelSlowColMin`), and a dashed centre line marking
-  the row. Selecting the tunnel tool lights up the whole row, since that is what
+  wrap, amber tint on the slow tiles, and a dashed centre line marking the row. Selecting the tunnel tool lights up the whole row, since that is what
   a click is about to change.
 - Red-zone tint, ghost-door outlines, mirror guides.
 - Object markers, with a dashed ring around the armed one.
@@ -156,7 +156,7 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 9 | Nothing may exceed the current tile set's budget |
 | 10 | Ghost door tiles and power pellets should exist (warnings only) |
 | 11 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
-| 12 | Tunnel slow columns overlapping (warning only) |
+| 12 | Slow tiles stranded on walls (warning only) |
 | 13 | Two objects starting on the same tile (warning only) |
 
 **▶ Test level** runs the same checks first and refuses to launch on errors.
@@ -213,8 +213,12 @@ Each entry shows:
   },
   "fruitSpawn":       { "x": 13, "y": 20 },
   "tunnelRow":        17,
-  "tunnelSlowColMax": 5,
-  "tunnelSlowColMin": 22,
+  "tunnelSlowTiles": [
+    { "x": 0, "y": 17 }, { "x": 1, "y": 17 }, { "x": 2, "y": 17 },
+    { "x": 3, "y": 17 }, { "x": 4, "y": 17 }, { "x": 5, "y": 17 },
+    { "x": 22, "y": 17 }, { "x": 23, "y": 17 }, { "x": 24, "y": 17 },
+    { "x": 25, "y": 17 }, { "x": 26, "y": 17 }, { "x": 27, "y": 17 }
+  ],
   "redZoneTiles": [
     { "x": 12, "y": 14 }, { "x": 15, "y": 14 },
     { "x": 12, "y": 26 }, { "x": 15, "y": 26 }
@@ -229,9 +233,13 @@ Each entry shows:
 }
 ```
 
-Unchanged by any of the editor features above. `enemyHouseDoor` is now derived
-from the painted ghost-door tiles rather than placed separately, but it is still
-written out exactly as before.
+`enemyHouseDoor` is derived from the painted ghost-door tiles rather than placed
+separately, but it is still written out exactly as before.
+
+`tunnelSlowTiles` replaces the old `tunnelSlowColMax` / `tunnelSlowColMin` pair.
+A level file carrying the old fields is converted on load
+(`src/editor/LevelMigrate.ts`) into the tiles those bounds covered, so nothing
+saved by an earlier version loses its slow zones.
 
 ---
 
@@ -269,7 +277,7 @@ separately under `editor_prefs`; they follow the person, not the level.
 | `1`–`5` | Pick a tile (wall, empty, dot, power, ghost door) |
 | `B` / `E` / `F` | Paint / Erase / Fill |
 | `M` | Move objects |
-| `R` / `T` | Red zone / Tunnel row |
+| `R` / `S` / `T` | Red zone / Slow tiles / Tunnel row |
 | `[` / `]` | Brush size down / up |
 | `X` | Cycle mirror mode |
 | `G` | Toggle grid |
@@ -293,6 +301,7 @@ separately under `editor_prefs`; they follow the person, not the level.
 | `src/editor/TileSet.ts` | Placeable kinds, movable objects, tile sets and budgets |
 | `src/editor/Mirror.ts` | Mirror modes and the tiles each stroke echoes to |
 | `src/editor/Bounds.ts` | Which tiles may be painted (rows the HUD covers are locked) |
+| `src/editor/LevelMigrate.ts` | Brings level JSON from older versions up to date |
 | `src/editor/EditorPrefs.ts` | Per-person settings (tile set, brush, mirror, grid) |
 | `src/editor/Validate.ts` | BFS reachability, budgets and all validation rules |
 | `src/editor/LevelLibrary.ts` | localStorage multi-map library (CRUD) |
@@ -336,8 +345,7 @@ interface LevelData {
     };
     fruitSpawn:       { x: number; y: number };
     tunnelRow:        number;
-    tunnelSlowColMax: number;
-    tunnelSlowColMin: number;
+    tunnelSlowTiles:  { x: number; y: number }[];
     redZoneTiles:     { x: number; y: number }[];
     enemyHouseDoor:   { x: number; y: number };
     scatterTargets: {
@@ -361,7 +369,7 @@ interface LevelData {
 | Drag-to-move, arm-and-place, arrow-key nudging | ✅ Complete |
 | Brush sizes and 4-way mirror painting | ✅ Complete |
 | Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
-| Tunnel slow columns editable | ✅ Complete |
+| Slow tunnel as paintable tiles (`tunnelSlowTiles`) | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |

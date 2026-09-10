@@ -161,10 +161,9 @@ function getCurrentPlayerSpeed(): number {
 }
 
 function isEnemyInTunnel(enemy: IGameObject): boolean {
-    const lvl = gameState.currentLevel;
-    if (enemy.roundedY() !== lvl.tunnelRow) return false;
-    const col = enemy.roundedX();
-    return col <= lvl.tunnelSlowColMax || col >= lvl.tunnelSlowColMin;
+    const x = enemy.roundedX();
+    const y = enemy.roundedY();
+    return gameState.currentLevel.tunnelSlowTiles.some(t => t.x === x && t.y === y);
 }
 
 // Apply correct speed to all active enemies based on their current mode and position

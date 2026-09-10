@@ -86,9 +86,12 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         errors.push(`Tunnel row ${level.tunnelRow} is out of bounds`);
     }
 
-    // 6b. Tunnel slow columns
-    if (level.tunnelSlowColMax >= level.tunnelSlowColMin) {
-        warnings.push('Tunnel slow columns overlap — the whole tunnel row will slow enemies');
+    // 6b. Slow tiles on walls do nothing — enemies can never stand there
+    const strandedSlow = level.tunnelSlowTiles.filter(
+        t => !isWalkable(level, t.x, t.y),
+    ).length;
+    if (strandedSlow > 0) {
+        warnings.push(`${strandedSlow} slow tile(s) sit on walls, where no enemy can reach them`);
     }
 
     // 7. BFS reachability from player start (respect tunnel wrapping)

@@ -17,7 +17,7 @@ export const INFINITE = -1;
 /** Things painted into the tile grid. */
 export type TileKindId = 'wall' | 'empty' | 'dot' | 'power' | 'door';
 /** Things toggled per-tile but stored as a coordinate list. */
-export type ZoneKindId = 'red_zone';
+export type ZoneKindId = 'red_zone' | 'slow_zone';
 /** Single movable objects — exactly one of each exists in a level. */
 export type MarkerKindId =
     | 'player'
@@ -183,7 +183,30 @@ export function markerAtTile(level: LevelData, x: number, y: number): MarkerKind
 export type Usage = Record<BudgetKey, number>;
 
 export function emptyUsage(): Usage {
-    return { wall: 0, empty: 0, dot: 0, power: 0, door: 0, red_zone: 0 };
+    return { wall: 0, empty: 0, dot: 0, power: 0, door: 0, red_zone: 0, slow_zone: 0 };
+}
+
+/** The two per-tile zones, which live as coordinate lists rather than tile values. */
+export const ZONE_KINDS: readonly {
+    id: ZoneKindId;
+    label: string;
+    hint: string;
+    tiles(level: LevelData): Array<{ x: number; y: number }>;
+}[] = [
+    {
+        id: 'red_zone', label: 'Red zone',
+        hint: 'Junctions where enemies may not turn upward in scatter or chase mode',
+        tiles: lv => lv.redZoneTiles,
+    },
+    {
+        id: 'slow_zone', label: 'Slow tiles',
+        hint: 'Tiles where enemies crawl — the warp-tunnel mouths',
+        tiles: lv => lv.tunnelSlowTiles,
+    },
+] as const;
+
+export function zoneKindById(id: ZoneKindId): (typeof ZONE_KINDS)[number] {
+    return ZONE_KINDS.find(z => z.id === id)!;
 }
 
 /** Count everything a tile set budgets, from a level's actual contents. */
@@ -194,7 +217,8 @@ export function countUsage(level: LevelData): Usage {
             usage[tileKindOfValue(value).id]++;
         }
     }
-    usage.red_zone = level.redZoneTiles.length;
+    usage.red_zone  = level.redZoneTiles.length;
+    usage.slow_zone = level.tunnelSlowTiles.length;
     return usage;
 }
 
@@ -211,12 +235,13 @@ export interface TileSet {
 function classicBudgets(): Usage {
     const counted = countUsage(Levels.level1Data);
     return {
-        wall:     INFINITE,
-        empty:    INFINITE,
-        dot:      counted.dot,
-        power:    counted.power,
-        door:     counted.door,
-        red_zone: counted.red_zone,
+        wall:      INFINITE,
+        empty:     INFINITE,
+        dot:       counted.dot,
+        power:     counted.power,
+        door:      counted.door,
+        red_zone:  counted.red_zone,
+        slow_zone: counted.slow_zone,
     };
 }
 
@@ -234,12 +259,13 @@ export const TILE_SETS: readonly TileSet[] = [
         name: 'Extended',
         description: 'Room for a bigger maze — half again as many dots, twice the pellets.',
         budgets: {
-            wall:     INFINITE,
-            empty:    INFINITE,
-            dot:      Math.round(CLASSIC.dot * 1.5),
-            power:    CLASSIC.power * 2,
-            door:     CLASSIC.door * 2,
-            red_zone: CLASSIC.red_zone * 2,
+            wall:      INFINITE,
+            empty:     INFINITE,
+            dot:       Math.round(CLASSIC.dot * 1.5),
+            power:     CLASSIC.power * 2,
+            door:      CLASSIC.door * 2,
+            red_zone:  CLASSIC.red_zone * 2,
+            slow_zone: CLASSIC.slow_zone * 2,
         },
     },
     {
@@ -247,8 +273,8 @@ export const TILE_SETS: readonly TileSet[] = [
         name: 'Sandbox',
         description: 'No limits at all. Handy while blocking out a layout.',
         budgets: {
-            wall: INFINITE, empty: INFINITE, dot: INFINITE,
-            power: INFINITE, door: INFINITE, red_zone: INFINITE,
+            wall: INFINITE, empty: INFINITE, dot: INFINITE, power: INFINITE,
+            door: INFINITE, red_zone: INFINITE, slow_zone: INFINITE,
         },
     },
 ] as const;
@@ -286,6 +312,7 @@ export const BUDGET_ROWS: readonly { key: BudgetKey; label: string }[] = [
     { key: 'dot',      label: 'Dots'      },
     { key: 'power',    label: 'Power'     },
     { key: 'door',     label: 'Doors'     },
-    { key: 'red_zone', label: 'Red zones' },
-    { key: 'wall',     label: 'Walls'     },
+    { key: 'red_zone',  label: 'Red zones' },
+    { key: 'slow_zone', label: 'Slow tiles' },
+    { key: 'wall',      label: 'Walls'     },
 ] as const;

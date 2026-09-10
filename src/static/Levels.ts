@@ -56,8 +56,14 @@ export class Levels {
         },
         fruitSpawn:       { x: 13, y: 20 },
         tunnelRow:        17,
-        tunnelSlowColMax: 5,
-        tunnelSlowColMin: 22,
+        // The warp-tunnel mouths: row 17, columns 0-5 and 22-27. These are the
+        // exact tiles the old tunnelSlowColMax/tunnelSlowColMin pair covered.
+        tunnelSlowTiles: [
+            { x:  0, y: 17 }, { x:  1, y: 17 }, { x:  2, y: 17 },
+            { x:  3, y: 17 }, { x:  4, y: 17 }, { x:  5, y: 17 },
+            { x: 22, y: 17 }, { x: 23, y: 17 }, { x: 24, y: 17 },
+            { x: 25, y: 17 }, { x: 26, y: 17 }, { x: 27, y: 17 },
+        ],
         redZoneTiles: [
             { x: 12, y: 14 },
             { x: 15, y: 14 },

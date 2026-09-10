@@ -28,9 +28,13 @@ import {
     markerById,
     remainingOf,
     tileKindOfValue,
+    ZONE_KINDS,
+    zoneKindById,
     type BudgetKey,
     type MarkerKindId,
+    type ZoneKindId,
 } from './TileSet';
+import { migrateLevel } from './LevelMigrate';
 import {
     activeTileSet,
     createEditorState,
@@ -63,7 +67,7 @@ function loadAutosave(): LevelData | null {
     try {
         const raw = localStorage.getItem(AUTOSAVE_KEY);
         if (!raw) return null;
-        return JSON.parse(raw) as LevelData;
+        return migrateLevel(JSON.parse(raw) as LevelData);
     } catch {
         return null;
     }
@@ -224,8 +228,8 @@ function floodFill(state: EditorState, startX: number, startY: number): boolean 
 // ── Tool Application ──────────────────────────────────────────────────────────
 
 let isPainting = false;
-let redZoneDragMode: 'add' | 'remove' | null = null;
-const redZoneDragSeen = new Set<string>();
+let zoneDragMode: 'add' | 'remove' | null = null;
+const zoneDragSeen = new Set<string>();
 
 /** Snapshot taken at pointer-down, pushed onto the undo stack only if the stroke changes something. */
 let pendingUndo: LevelData | null = null;
@@ -260,33 +264,46 @@ function moveMarker(state: EditorState, id: MarkerKindId, cell: { x: number; y: 
     return true;
 }
 
-function toggleRedZone(state: EditorState, cells: Array<{ x: number; y: number }>, mode: 'add' | 'remove'): boolean {
+function toggleZone(
+    state: EditorState,
+    zone: ZoneKindId,
+    cells: Array<{ x: number; y: number }>,
+    mode: 'add' | 'remove',
+): boolean {
     const tileSet = activeTileSet(state);
+    const list = zoneKindById(zone).tiles(state.level);
     let changed = false;
     let blocked = false;
     for (const { x, y } of cells) {
-        const idx = state.level.redZoneTiles.findIndex(t => t.x === x && t.y === y);
+        const idx = list.findIndex(t => t.x === x && t.y === y);
         if (mode === 'remove') {
             if (idx < 0) continue;
-            state.level.redZoneTiles.splice(idx, 1);
-            state.usage.red_zone--;
+            list.splice(idx, 1);
+            state.usage[zone]--;
             changed = true;
         } else {
             if (idx >= 0) continue;
-            if (remainingOf(tileSet, state.usage, 'red_zone') <= 0) { blocked = true; continue; }
-            state.level.redZoneTiles.push({ x, y });
-            state.usage.red_zone++;
+            if (remainingOf(tileSet, state.usage, zone) <= 0) { blocked = true; continue; }
+            list.push({ x, y });
+            state.usage[zone]++;
             changed = true;
         }
     }
-    if (blocked) budgetToast(state, 'red_zone');
+    if (blocked) budgetToast(state, zone);
     return changed;
+}
+
+/** The zone a zone-painting tool edits. */
+function zoneForTool(tool: EditorTool): ZoneKindId | null {
+    if (tool === 'red_zone')  return 'red_zone';
+    if (tool === 'slow_zone') return 'slow_zone';
+    return null;
 }
 
 /** Tools that write into the grid; the move tool is exempt. */
 function toolWritesTiles(tool: EditorTool): boolean {
     return tool === 'paint' || tool === 'erase' || tool === 'fill'
-        || tool === 'red_zone' || tool === 'tunnel_config';
+        || tool === 'red_zone' || tool === 'slow_zone' || tool === 'tunnel_config';
 }
 
 function applyToolDown(state: EditorState, cell: { x: number; y: number }): boolean {
@@ -323,12 +340,14 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): bool
             state.level.tunnelRow = y;
             return true;
         }
-        case 'red_zone': {
-            const exists = state.level.redZoneTiles.some(t => t.x === x && t.y === y);
-            redZoneDragMode = exists ? 'remove' : 'add';
+        case 'red_zone':
+        case 'slow_zone': {
+            const zone = zoneForTool(state.selectedTool)!;
+            const exists = zoneKindById(zone).tiles(state.level).some(t => t.x === x && t.y === y);
+            zoneDragMode = exists ? 'remove' : 'add';
             const cells = [cell, ...mirrorPartners(state.prefs.mirrorMode, x, y)];
-            for (const c of cells) redZoneDragSeen.add(`${c.x},${c.y}`);
-            return toggleRedZone(state, cells, redZoneDragMode);
+            for (const c of cells) zoneDragSeen.add(`${c.x},${c.y}`);
+            return toggleZone(state, zone, cells, zoneDragMode);
         }
     }
 }
@@ -348,13 +367,15 @@ function applyToolDrag(state: EditorState, cell: { x: number; y: number }): bool
             state.level.tunnelRow = y;
             return true;
         }
-        case 'red_zone': {
-            if (!redZoneDragMode) return false;
+        case 'red_zone':
+        case 'slow_zone': {
+            if (!zoneDragMode) return false;
+            const zone = zoneForTool(state.selectedTool)!;
             const cells = [cell, ...mirrorPartners(state.prefs.mirrorMode, x, y)]
-                .filter(c => !redZoneDragSeen.has(`${c.x},${c.y}`));
+                .filter(c => !zoneDragSeen.has(`${c.x},${c.y}`));
             if (cells.length === 0) return false;
-            for (const c of cells) redZoneDragSeen.add(`${c.x},${c.y}`);
-            return toggleRedZone(state, cells, redZoneDragMode);
+            for (const c of cells) zoneDragSeen.add(`${c.x},${c.y}`);
+            return toggleZone(state, zone, cells, zoneDragMode);
         }
         case 'fill':
             return false;
@@ -457,13 +478,6 @@ function drawTunnelOverlay(ctx: CanvasRenderingContext2D, state: EditorState): v
         ctx.fillRect(0, top, width, unit);
     }
 
-    // Columns where enemies slow down
-    const slowMax = Math.min(gridW - 1, lv.tunnelSlowColMax);
-    const slowMin = Math.max(0, lv.tunnelSlowColMin);
-    ctx.fillStyle = 'rgba(255,176,64,0.13)';
-    if (slowMax >= 0)    ctx.fillRect(0, top, (slowMax + 1) * unit, unit);
-    if (slowMin < gridW) ctx.fillRect(slowMin * unit, top, (gridW - slowMin) * unit, unit);
-
     // The row itself, as a dashed centre line
     ctx.strokeStyle = 'rgba(0,216,255,0.5)';
     ctx.lineWidth = 1;
@@ -490,6 +504,14 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     const lv = state.level;
 
     drawTunnelOverlay(ctx, state);
+
+    // Slow tiles — wherever they are, not just on the tunnel row
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,176,64,0.22)';
+    for (const t of lv.tunnelSlowTiles) {
+        ctx.fillRect(t.x * unit, t.y * unit, unit, unit);
+    }
+    ctx.restore();
 
     // Red zone tile markers
     ctx.save();
@@ -640,7 +662,7 @@ function importLevelJSON(onLoad: (level: LevelData) => void): void {
         const reader = new FileReader();
         reader.onload = () => {
             try {
-                const data = JSON.parse(reader.result as string) as LevelData;
+                const data = migrateLevel(JSON.parse(reader.result as string) as LevelData);
                 onLoad(data);
             } catch {
                 alert('Invalid level JSON file.');
@@ -873,7 +895,8 @@ const TOOL_BUTTONS: Array<{ tool: EditorTool; id: string }> = [
     { tool: 'erase',         id: 'ed-tool-erase'   },
     { tool: 'fill',          id: 'ed-tool-fill'    },
     { tool: 'move',          id: 'ed-tool-move'    },
-    { tool: 'red_zone',      id: 'ed-tool-redzone' },
+    { tool: 'red_zone',      id: 'ed-tool-redzone'  },
+    { tool: 'slow_zone',     id: 'ed-tool-slowzone' },
     { tool: 'tunnel_config', id: 'ed-tool-tunnel'  },
 ];
 
@@ -1075,18 +1098,12 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                 <button id="ed-tool-redzone" aria-pressed="false" title="Toggle no-turn-up junction tiles (R)">
                     ⊕ Red zone<span class="ed-count" id="ed-rz-count"></span>
                 </button>
+                <button id="ed-tool-slowzone" aria-pressed="false" title="Toggle tiles where enemies crawl (S)">
+                    ⌁ Slow tiles<span class="ed-count" id="ed-slow-count"></span>
+                </button>
                 <button id="ed-tool-tunnel" aria-pressed="false" title="Click a row to make it the warp tunnel (T)">
                     ~ Tunnel row<span class="ed-count" id="ed-tunnel-row"></span>
                 </button>
-                <div class="ed-label-sm">Slow columns (enemies crawl here)</div>
-                <div class="ed-row">
-                    <label class="ed-num" for="ed-slow-left">≤
-                        <input type="number" id="ed-slow-left" min="-1" max="${gridW - 1}" step="1">
-                    </label>
-                    <label class="ed-num" for="ed-slow-right">≥
-                        <input type="number" id="ed-slow-right" min="0" max="${gridW}" step="1">
-                    </label>
-                </div>
                 <p class="ed-desc" id="ed-tunnel-desc"></p>
             </div>
         </details>
@@ -1131,7 +1148,7 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                 <li><kbd>1</kbd>–<kbd>5</kbd> pick a tile</li>
                 <li><kbd>B</kbd> paint · <kbd>E</kbd> erase · <kbd>F</kbd> fill</li>
                 <li><kbd>M</kbd> move objects · arrows nudge</li>
-                <li><kbd>R</kbd> red zone · <kbd>T</kbd> tunnel row</li>
+                <li><kbd>R</kbd> red zone · <kbd>S</kbd> slow tiles · <kbd>T</kbd> tunnel row</li>
                 <li><kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>X</kbd> cycle mirror</li>
                 <li><kbd>G</kbd> grid · <kbd>H</kbd> hide panel</li>
                 <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</li>
@@ -1254,24 +1271,6 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
 
     el<HTMLButtonElement>('ed-hide').onclick = () => setPanelOpen(false);
 
-    // Tunnel slow columns — level data that previously had no control
-    const slowLeft  = el<HTMLInputElement>('ed-slow-left');
-    const slowRight = el<HTMLInputElement>('ed-slow-right');
-    const commitSlow = (input: HTMLInputElement, min: number, max: number, apply: (v: number) => void) => {
-        const value = Math.round(Number(input.value));
-        if (!Number.isFinite(value)) return;
-        const clamped = Math.min(max, Math.max(min, value));
-        input.value = String(clamped);   // show what was actually stored
-        beginStroke(state);
-        apply(clamped);
-        noteChange(state);
-    };
-    slowLeft.onchange = () => commitSlow(slowLeft, -1, gridW - 1, (v) => {
-        state.level.tunnelSlowColMax = v;
-    });
-    slowRight.onchange = () => commitSlow(slowRight, 0, gridW, (v) => {
-        state.level.tunnelSlowColMin = v;
-    });
 
     // Mirror modes
     const mirrorRow = el('ed-mirror-modes');
@@ -1452,16 +1451,12 @@ function refreshReadouts(state: EditorState): void {
     }
 
     // Zones
-    const rzBudget = tileSet.budgets.red_zone;
-    el('ed-rz-count').textContent = formatBudget(state.usage.red_zone, rzBudget);
+    el('ed-rz-count').textContent   = formatBudget(state.usage.red_zone,  tileSet.budgets.red_zone);
+    el('ed-slow-count').textContent = formatBudget(state.usage.slow_zone, tileSet.budgets.slow_zone);
     el('ed-tunnel-row').textContent = `row ${state.level.tunnelRow}`;
-    const slowLeftInput  = el<HTMLInputElement>('ed-slow-left');
-    const slowRightInput = el<HTMLInputElement>('ed-slow-right');
-    if (document.activeElement !== slowLeftInput)  slowLeftInput.value  = String(state.level.tunnelSlowColMax);
-    if (document.activeElement !== slowRightInput) slowRightInput.value = String(state.level.tunnelSlowColMin);
     el('ed-tunnel-desc').textContent =
-        'Cyan boxes mark the two tiles that wrap to the other side; amber marks the '
-        + 'slow columns. Slowing applies on the tunnel row only.';
+        'Cyan boxes mark the two tiles that wrap to the other side. Amber tiles are '
+        + 'slow tiles — paint them anywhere enemies should crawl.';
 
     // History
     ui.undo.disabled = state.undoStack.length === 0;
@@ -1510,8 +1505,8 @@ function attachCanvasEvents(state: EditorState): void {
         const cell = tileFromCanvas(clientX, clientY);
         if (!cell) return;
         isPainting = true;
-        redZoneDragMode = null;
-        redZoneDragSeen.clear();
+        zoneDragMode = null;
+        zoneDragSeen.clear();
         beginStroke(state);
         if (applyToolDown(state, cell)) noteChange(state);
     }
@@ -1608,7 +1603,8 @@ function attachKeyboardShortcuts(state: EditorState): void {
             case 'e': selectTool(state, 'erase'); break;
             case 'f': selectTool(state, 'fill');  break;
             case 'm': selectTool(state, 'move');  break;
-            case 'r': selectTool(state, 'red_zone'); break;
+            case 'r': selectTool(state, 'red_zone');  break;
+            case 's': selectTool(state, 'slow_zone'); break;
             case 't': selectTool(state, 'tunnel_config'); break;
             case 'g':
                 state.prefs.showGrid = !state.prefs.showGrid;

@@ -1,4 +1,5 @@
 import type { LevelData } from '../types';
+import { migrateLevel } from './LevelMigrate';
 
 const LIBRARY_KEY = 'editor_library';
 
@@ -29,7 +30,9 @@ function saveRaw(entries: LibraryEntry[]): void {
 }
 
 export function listLevels(): LibraryEntry[] {
-    return loadRaw();
+    const entries = loadRaw();
+    for (const entry of entries) migrateLevel(entry.level);
+    return entries;
 }
 
 /** Save or overwrite a level. Returns the entry's id. */
@@ -49,7 +52,7 @@ export function saveLevel(level: LevelData, existingId?: string, tileSetId?: str
 
 export function loadLevel(id: string): LevelData | null {
     const entry = loadRaw().find(e => e.id === id);
-    return entry?.level ?? null;
+    return entry ? migrateLevel(entry.level) : null;
 }
 
 export function deleteLevel(id: string): void {

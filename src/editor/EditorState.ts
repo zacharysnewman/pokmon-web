@@ -8,7 +8,8 @@ export type EditorTool =
     | 'fill'
     | 'move'          // grab / place the single movable objects (spawns, targets)
     | 'tunnel_config'
-    | 'red_zone';
+    | 'red_zone'
+    | 'slow_zone';
 
 export interface EditorState {
     level: LevelData;
@@ -44,7 +45,8 @@ export function deepCopyLevel(level: LevelData): LevelData {
         },
         fruitSpawn:     { ...level.fruitSpawn },
         enemyHouseDoor: { ...level.enemyHouseDoor },
-        redZoneTiles:   level.redZoneTiles.map(t => ({ ...t })),
+        redZoneTiles:     level.redZoneTiles.map(t => ({ ...t })),
+        tunnelSlowTiles:  level.tunnelSlowTiles.map(t => ({ ...t })),
         scatterTargets: {
             redEnemy:     { ...level.scatterTargets.redEnemy },
             cyanEnemy:    { ...level.scatterTargets.cyanEnemy },
