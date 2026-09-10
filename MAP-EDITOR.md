@@ -111,7 +111,12 @@ red-zone toggling too, and every mirrored tile draws from the same budget.
 
 - **Map bounds** — a white rectangle marks the paintable 28 × 36 area.
 - **Grid** — faint guide lines, toggled with `G`.
-- Tunnel row tint, red-zone tint, ghost-door outlines, mirror guides.
+- **Tunnel** — cyan boxes with outward arrows on the two tiles that actually
+  wrap, amber tint on the columns where enemies slow down
+  (`tunnelSlowColMax` / `tunnelSlowColMin`), and a dashed centre line marking
+  the row. Selecting the tunnel tool lights up the whole row, since that is what
+  a click is about to change.
+- Red-zone tint, ghost-door outlines, mirror guides.
 - Object markers, with a dashed ring around the armed one.
 - Hover preview of the exact cells the brush will paint.
 

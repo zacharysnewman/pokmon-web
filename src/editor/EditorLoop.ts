@@ -405,14 +405,73 @@ function drawCrossMarker(
     ctx.restore();
 }
 
+/** Small triangle pointing off the edge of the maze. */
+function drawWrapArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, dir: -1 | 1): void {
+    const r = unit * 0.26;
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * r, cy);
+    ctx.lineTo(cx - dir * r * 0.7, cy - r * 0.8);
+    ctx.lineTo(cx - dir * r * 0.7, cy + r * 0.8);
+    ctx.closePath();
+    ctx.fill();
+}
+
+/**
+ * The tunnel row only does two things: walking off either end wraps you to the
+ * other side, and enemies crawl through the end columns. Draw those, rather
+ * than tinting the whole row as though every tile in it were special.
+ */
+function drawTunnelOverlay(ctx: CanvasRenderingContext2D, state: EditorState): void {
+    const lv = state.level;
+    const row = lv.tunnelRow;
+    if (row < 0 || row >= gridH) return;
+
+    const top = row * unit;
+    const width = gridW * unit;
+    const midY = top + unit / 2;
+
+    ctx.save();
+
+    // While the tunnel tool is active, show the whole row — that is what a
+    // click is about to change.
+    if (state.selectedTool === 'tunnel_config') {
+        ctx.fillStyle = 'rgba(0,200,255,0.10)';
+        ctx.fillRect(0, top, width, unit);
+    }
+
+    // Columns where enemies slow down
+    const slowMax = Math.min(gridW - 1, lv.tunnelSlowColMax);
+    const slowMin = Math.max(0, lv.tunnelSlowColMin);
+    ctx.fillStyle = 'rgba(255,176,64,0.13)';
+    if (slowMax >= 0)    ctx.fillRect(0, top, (slowMax + 1) * unit, unit);
+    if (slowMin < gridW) ctx.fillRect(slowMin * unit, top, (gridW - slowMin) * unit, unit);
+
+    // The row itself, as a dashed centre line
+    ctx.strokeStyle = 'rgba(0,216,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(width, midY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // The wrap points: the only two tiles that teleport
+    ctx.strokeStyle = '#00d8ff';
+    ctx.fillStyle   = '#00d8ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, top + 1, unit - 2, unit - 2);
+    ctx.strokeRect((gridW - 1) * unit + 1, top + 1, unit - 2, unit - 2);
+    drawWrapArrow(ctx, unit * 0.5, midY, -1);
+    drawWrapArrow(ctx, width - unit * 0.5, midY, 1);
+
+    ctx.restore();
+}
+
 function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): void {
     const lv = state.level;
 
-    // Tunnel row highlight
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,200,255,0.12)';
-    ctx.fillRect(0, lv.tunnelRow * unit, gridW * unit, unit);
-    ctx.restore();
+    drawTunnelOverlay(ctx, state);
 
     // Red zone tile markers
     ctx.save();
@@ -462,7 +521,7 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     // Grid lines — kept faint so they read as guides, not maze content
     if (state.prefs.showGrid) {
         ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         for (let x = 1; x < gridW; x++) {
@@ -982,6 +1041,7 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
                 <button id="ed-tool-tunnel" aria-pressed="false" title="Click a row to make it the warp tunnel (T)">
                     ~ Tunnel row<span class="ed-count" id="ed-tunnel-row"></span>
                 </button>
+                <p class="ed-desc" id="ed-tunnel-desc"></p>
             </div>
         </details>
 
@@ -1330,6 +1390,10 @@ function refreshReadouts(state: EditorState): void {
     const rzBudget = tileSet.budgets.red_zone;
     el('ed-rz-count').textContent = formatBudget(state.usage.red_zone, rzBudget);
     el('ed-tunnel-row').textContent = `row ${state.level.tunnelRow}`;
+    el('ed-tunnel-desc').textContent =
+        `Cyan boxes mark the two tiles that wrap to the other side. Amber columns `
+        + `(0–${state.level.tunnelSlowColMax} and ${state.level.tunnelSlowColMin}–${gridW - 1}) `
+        + `are where enemies slow down.`;
 
     // History
     ui.undo.disabled = state.undoStack.length === 0;
