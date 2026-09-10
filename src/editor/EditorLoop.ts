@@ -2,7 +2,7 @@ import { unit, gridW, gridH } from '../constants';
 import { gameState } from '../game-state';
 import { Levels } from '../static/Levels';
 import { Draw } from '../static/Draw';
-import { startTestGame, viewportSize } from '../Game';
+import { exitTestGame, startTestGame, viewportSize } from '../Game';
 import type { LevelData, TileValue } from '../types';
 import { TILE_EMPTY, TILE_GHOST_DOOR } from '../tiles';
 import { validateLevel } from './Validate';
@@ -1053,6 +1053,42 @@ function openLibraryModal(
 
 // ── Play-test ─────────────────────────────────────────────────────────────────
 
+/**
+ * A way out of a play-test that does not need a keyboard. Escape works too, but
+ * on a phone there is none — without this the only exit was to lose every life.
+ */
+function showExitTestButton(): void {
+    document.getElementById('ed-exit-test')?.remove();
+
+    const button = document.createElement('button');
+    button.id = 'ed-exit-test';
+    button.type = 'button';
+    button.textContent = '✕ Exit test';
+    button.title = 'Return to the editor (Esc)';
+    button.setAttribute('aria-label', 'Exit the play-test and return to the editor');
+    button.style.cssText = [
+        'position: fixed', 'top: 8px', 'left: 8px', 'z-index: 150',
+        'background: rgba(0,0,0,0.85)', 'color: #ff0', 'border: 2px solid #666',
+        'border-radius: 8px', 'padding: 8px 12px', 'min-height: 44px',
+        'font-family: monospace', 'font-size: 14px', 'cursor: pointer',
+        'touch-action: manipulation',
+    ].join(';');
+
+    const leave = (event: Event): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        exitTestGame();
+    };
+    button.addEventListener('click', leave);
+    button.addEventListener('touchend', leave, { passive: false });
+    // The game reads swipes from `document`, so keep taps on the button out of it.
+    for (const type of ['touchstart', 'touchmove', 'mousedown', 'mouseup'] as const) {
+        button.addEventListener(type, (event) => event.stopPropagation(), { passive: false });
+    }
+
+    document.body.appendChild(button);
+}
+
 function runTestGame(state: EditorState, level: LevelData): void {
     stopEditorLoop();
     const panel = document.getElementById('editor-panel');
@@ -1063,7 +1099,10 @@ function runTestGame(state: EditorState, level: LevelData): void {
     panelOpen = false;
     layoutCanvas();
 
+    showExitTestButton();
+
     startTestGame(level, () => {
+        document.getElementById('ed-exit-test')?.remove();
         if (panel) {
             document.body.appendChild(panel);
             buildPanel(state, panel);
