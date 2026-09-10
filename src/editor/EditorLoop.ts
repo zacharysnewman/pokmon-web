@@ -8,6 +8,13 @@ import { TILE_EMPTY, TILE_GHOST_DOOR } from '../tiles';
 import { validateLevel } from './Validate';
 import { saveLevel, listLevels, deleteLevel, formatDate } from './LevelLibrary';
 import { loadPrefs, savePrefs } from './EditorPrefs';
+import {
+    EDIT_MAX_Y,
+    EDIT_MIN_Y,
+    RESERVED_ROWS_HINT,
+    isEditableTile,
+    isReservedRow,
+} from './Bounds';
 import { MIRROR_MODES, mirrorModeDef, mirrorPartners, nextMirrorMode, type MirrorMode } from './Mirror';
 import {
     BUDGET_ROWS,
@@ -167,7 +174,7 @@ function brushCells(state: EditorState, cell: { x: number; y: number }): Array<{
     const seen = new Set<string>();
 
     const add = (x: number, y: number): void => {
-        if (x < 0 || x >= gridW || y < 0 || y >= gridH) return;
+        if (!isEditableTile(x, y)) return;
         const key = `${x},${y}`;
         if (seen.has(key)) return;
         seen.add(key);
@@ -204,7 +211,7 @@ function floodFill(state: EditorState, startX: number, startY: number): boolean 
         const { x, y } = queue.shift()!;
         const key = `${x},${y}`;
         if (visited.has(key)) continue;
-        if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
+        if (!isEditableTile(x, y)) continue;
         if (state.level.tiles[y][x] !== targetValue) continue;
         visited.add(key);
         region.push({ x, y });
@@ -276,8 +283,18 @@ function toggleRedZone(state: EditorState, cells: Array<{ x: number; y: number }
     return changed;
 }
 
+/** Tools that write into the grid; the move tool is exempt. */
+function toolWritesTiles(tool: EditorTool): boolean {
+    return tool === 'paint' || tool === 'erase' || tool === 'fill'
+        || tool === 'red_zone' || tool === 'tunnel_config';
+}
+
 function applyToolDown(state: EditorState, cell: { x: number; y: number }): boolean {
     const { x, y } = cell;
+    if (toolWritesTiles(state.selectedTool) && isReservedRow(y)) {
+        showToast(RESERVED_ROWS_HINT);
+        return false;
+    }
     switch (state.selectedTool) {
         case 'paint':
             return paintCells(state, brushCells(state, cell), state.selectedTileValue);
@@ -318,6 +335,7 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): bool
 
 function applyToolDrag(state: EditorState, cell: { x: number; y: number }): boolean {
     const { x, y } = cell;
+    if (toolWritesTiles(state.selectedTool) && isReservedRow(y)) return false;
     switch (state.selectedTool) {
         case 'paint':
             return paintCells(state, brushCells(state, cell), state.selectedTileValue);
@@ -536,11 +554,23 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
         ctx.restore();
     }
 
+    // Reserved rows: the HUD covers these in play, so they cannot be painted
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, gridW * unit, EDIT_MIN_Y * unit);
+    ctx.fillRect(0, (EDIT_MAX_Y + 1) * unit, gridW * unit, (gridH - 1 - EDIT_MAX_Y) * unit);
+    ctx.restore();
+
     // Map bounds — everything paintable lives inside this rectangle
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(1, 1, gridW * unit - 2, gridH * unit - 2);
+    ctx.strokeRect(
+        1,
+        EDIT_MIN_Y * unit + 1,
+        gridW * unit - 2,
+        (EDIT_MAX_Y - EDIT_MIN_Y + 1) * unit - 2,
+    );
     ctx.restore();
 
     // Movable objects — scatter targets first so spawns draw on top
@@ -556,7 +586,8 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     }
 
     // Hover preview — the brush footprint, or the tile under the cursor
-    if (state.hoveredCell) {
+    if (state.hoveredCell
+        && !(toolWritesTiles(state.selectedTool) && isReservedRow(state.hoveredCell.y))) {
         ctx.save();
         ctx.fillStyle = 'rgba(255,255,255,0.25)';
         const cells = (state.selectedTool === 'paint' || state.selectedTool === 'erase')
@@ -1410,7 +1441,8 @@ function updateHoverInfo(state: EditorState): void {
         return;
     }
     const kind = tileKindOfValue(state.level.tiles[hovered.y][hovered.x]);
-    ui.info.textContent = `${hovered.x}, ${hovered.y} · ${kind.label}`;
+    const suffix = isReservedRow(hovered.y) ? ' · reserved' : '';
+    ui.info.textContent = `${hovered.x}, ${hovered.y} · ${kind.label}${suffix}`;
 }
 
 function runValidation(state: EditorState): { valid: boolean } {

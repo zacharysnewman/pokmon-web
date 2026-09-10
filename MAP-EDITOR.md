@@ -109,7 +109,12 @@ red-zone toggling too, and every mirrored tile draws from the same budget.
 
 ### Canvas overlay
 
-- **Map bounds** — a white rectangle marks the paintable 28 × 36 area.
+- **Map bounds** — a white rectangle marks the paintable area: all 28 columns,
+  rows 1–34. The outer rows are dimmed and cannot be painted, because the game
+  draws its HUD over them (score along the top, lives and the fruit counter
+  along the bottom). Columns are never clipped — the tunnel has to wrap through
+  columns 0 and 27. Movable objects are exempt: scatter targets belong outside
+  the maze, and the built-in level parks them on rows 0 and 34.
 - **Grid** — faint guide lines, toggled with `G`.
 - **Tunnel** — cyan boxes with outward arrows on the two tiles that actually
   wrap, amber tint on the columns where enemies slow down
@@ -144,7 +149,8 @@ Click **✔ Validate** to run all checks. Results appear inline in the panel.
 | 8 | Level name should not be empty (warning only) |
 | 9 | Nothing may exceed the current tile set's budget |
 | 10 | Ghost door tiles and power pellets should exist (warnings only) |
-| 11 | Two objects starting on the same tile (warning only) |
+| 11 | Pellets outside rows 1–34, hidden under the HUD (warning only) |
+| 12 | Two objects starting on the same tile (warning only) |
 
 **▶ Test level** runs the same checks first and refuses to launch on errors.
 
@@ -279,6 +285,7 @@ separately under `editor_prefs`; they follow the person, not the level.
 | `src/editor/EditorLoop.ts` | rAF loop, canvas input, tool dispatch, panel UI, library modal |
 | `src/editor/TileSet.ts` | Placeable kinds, movable objects, tile sets and budgets |
 | `src/editor/Mirror.ts` | Mirror modes and the tiles each stroke echoes to |
+| `src/editor/Bounds.ts` | Which tiles may be painted (rows the HUD covers are locked) |
 | `src/editor/EditorPrefs.ts` | Per-person settings (tile set, brush, mirror, grid) |
 | `src/editor/Validate.ts` | BFS reachability, budgets and all validation rules |
 | `src/editor/LevelLibrary.ts` | localStorage multi-map library (CRUD) |
@@ -346,7 +353,7 @@ interface LevelData {
 | Spawns and scatter targets as single movable objects | ✅ Complete |
 | Drag-to-move, arm-and-place, arrow-key nudging | ✅ Complete |
 | Brush sizes and 4-way mirror painting | ✅ Complete |
-| Map bounds rectangle and faint grid | ✅ Complete |
+| Map bounds rectangle, HUD rows locked, faint grid | ✅ Complete |
 | Maze rendered from the level being edited | ✅ Complete |
 | Mobile bottom-sheet layout, 44 px+ targets, ARIA state | ✅ Complete |
 | Tile paint / erase / flood fill | ✅ Complete |

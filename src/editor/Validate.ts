@@ -1,6 +1,7 @@
 import { gridW, gridH } from '../constants';
 import type { LevelData } from '../types';
 import { TILE_WALL, TILE_DOT, TILE_POWER } from '../tiles';
+import { EDIT_MAX_Y, EDIT_MIN_Y, isReservedRow } from './Bounds';
 import {
     BUDGET_ROWS,
     countUsage,
@@ -152,7 +153,24 @@ export function validateLevel(level: LevelData, tileSet?: TileSet): ValidationRe
         warnings.push('No power pellets — ghosts can never be frightened');
     }
 
-    // 11. Movable objects sharing a tile — legal, but almost always a mistake
+    // 11. Collectibles hidden under the HUD (possible in imported levels — the
+    //     editor itself will not paint there)
+    let hiddenPellets = 0;
+    for (let y = 0; y < gridH; y++) {
+        if (!isReservedRow(y)) continue;
+        for (let x = 0; x < gridW; x++) {
+            const t = level.tiles[y][x];
+            if (t === TILE_DOT || t === TILE_POWER) hiddenPellets++;
+        }
+    }
+    if (hiddenPellets > 0) {
+        warnings.push(
+            `${hiddenPellets} pellet(s) sit outside rows ${EDIT_MIN_Y}–${EDIT_MAX_Y}, ` +
+            `where the score and lives display covers them`,
+        );
+    }
+
+    // 12. Movable objects sharing a tile — legal, but almost always a mistake
     const spawnMarkers = MARKER_KINDS.filter(m => m.group === 'spawn');
     const seen = new Map<string, string>();
     for (const marker of spawnMarkers) {
