@@ -817,7 +817,7 @@ let lastLayoutKey = '';
  */
 function layoutCanvas(): void {
     const canvas = gameState.canvas;
-    if (!canvas) return;
+    if (!canvas || isTypingInPanel()) return;
     const panel = document.getElementById('editor-panel');
     lastLayoutKey = layoutKey();
 
@@ -876,6 +876,17 @@ function layoutCanvas(): void {
  * mobile browsers do not reliably fire `resize` when the URL bar slides away
  * or the viewport settles after load.
  */
+/**
+ * True while a panel field has focus. An on-screen keyboard shrinks the visual
+ * viewport, and relaying out on that would resize the maze under the person
+ * typing a level name. The next layout check after blur puts it right.
+ */
+function isTypingInPanel(): boolean {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement || active instanceof HTMLSelectElement)) return false;
+    return active.closest('#editor-panel') !== null;
+}
+
 function layoutKey(): string {
     const { width, height } = viewportSize();
     return `${width}x${height}:${panelOpen}`;
